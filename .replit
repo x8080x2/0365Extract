@@ -1,0 +1,39 @@
+modules = ["nodejs-20", "web"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+packages = ["chromium", "glib", "xorg.libX11", "xorg.libXcomposite", "xorg.libXcursor", "xorg.libXdamage", "xorg.libXext", "xorg.libXi", "xorg.libXrandr", "xorg.libXrender", "xorg.libXScrnSaver", "xorg.libXtst", "xorg.libxcb", "nss", "gcc", "libdrm", "at-spi2-atk", "gtk3", "xorg.libxshmfence", "libxkbcommon"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Outlook Automation"
+
+[[workflows.workflow]]
+name = "Outlook Automation"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm start"
+waitForPort = 5000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[deployment]
+deploymentTarget = "vm"
+run = ["npm", "start"]
