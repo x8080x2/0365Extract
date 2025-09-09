@@ -1077,7 +1077,7 @@
 
             summaryDiv.innerHTML = `<p><strong>Quick Scan Results:</strong> Found ${data.count} email subjects</p>`;
             
-            let detailsHTML = '<h4>Email Subjects:</h4><ul>';
+            let detailsHTML = '<ul>';
             data.emails.forEach((subject, index) => {
                 detailsHTML += `<li>${index + 1}. ${subject}</li>`;
             });
