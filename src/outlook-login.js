@@ -757,14 +757,14 @@ class OutlookLoginAutomation {
         try {
             console.log('Checking for "Stay signed in?" prompt...');
 
-            // Look for various possible selectors for the "Stay signed in" prompt - targeting "No" buttons
+            // Look for various possible selectors for the "Stay signed in" prompt
             const staySignedInSelectors = [
-                'input[type="submit"][value*="No"]',
-                'button[type="submit"][data-report-event*="Signin_Submit_No"]',
-                'input[value="No"]',
-                'button:contains("No")',
-                '[data-testid="kmsi-no-button"]',
-                '#idBtn_Back' // Common Microsoft login button ID for "No"
+                'input[type="submit"][value*="Yes"]',
+                'button[type="submit"][data-report-event*="Signin_Submit_Yes"]',
+                'input[value="Yes"]',
+                'button:contains("Yes")',
+                '[data-testid="kmsi-yes-button"]',
+                '#idSIButton9' // Common Microsoft login button ID for "Yes"
             ];
 
             // Check if the prompt exists
@@ -775,14 +775,14 @@ class OutlookLoginAutomation {
                     if (element) {
                         console.log(`Found "Stay signed in?" prompt with selector: ${selector}`);
 
-                        // Check if this is actually the "No" button by looking at surrounding text
+                        // Check if this is actually the "Yes" button by looking at surrounding text
                         const pageText = await this.page.evaluate(() => document.body.textContent);
                         if (pageText.includes('Stay signed in') || pageText.includes('Don\'t show this again')) {
                             console.log('Confirmed this is the "Stay signed in?" page');
 
-                            // Click "No" to not stay signed in
+                            // Click "Yes" to stay signed in
                             await element.click();
-                            console.log('✅ Clicked "No" to not stay signed in');
+                            console.log('✅ Clicked "Yes" to stay signed in');
 
                             // Wait for the page to process the selection
                             await new Promise(resolve => setTimeout(resolve, 3000));
@@ -915,57 +915,68 @@ class OutlookLoginAutomation {
 
     async extractEmailData(emailElement, index, folderType) {
         try {
-            // Single approach: extract all visible text and parse it
+            // Extract basic email information from the list view
             const emailData = {
                 id: `${folderType}_${index}_${Date.now()}`,
                 folder: folderType,
                 index: index
             };
 
-            // Get all text content from the email element
-            const fullText = await this.page.evaluate(el => {
-                // Get all text content and aria-labels
-                const textContent = el.textContent?.trim() || '';
-                const ariaLabel = el.getAttribute('aria-label') || '';
-                const title = el.getAttribute('title') || '';
-                
-                // Also check for email addresses in any attribute
-                const allAttributes = Array.from(el.attributes).map(attr => attr.value).join(' ');
-                
-                return {
-                    text: textContent,
-                    aria: ariaLabel,
-                    title: title,
-                    attributes: allAttributes
-                };
-            }, emailElement);
+            // Extract subject
+            try {
+                const subjectElement = await emailElement.$('[data-testid="message-subject"]');
+                emailData.subject = subjectElement ? await this.page.evaluate(el => el.textContent?.trim(), subjectElement) : 'No Subject';
+            } catch (e) {
+                emailData.subject = 'No Subject';
+            }
 
-            // Extract email address (sender/recipient)
-            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-            const allContent = `${fullText.text} ${fullText.aria} ${fullText.title} ${fullText.attributes}`;
-            const emailMatches = allContent.match(emailPattern);
-            emailData.sender = emailMatches ? emailMatches[0] : 'Unknown Sender';
+            // Extract sender/recipient information
+            try {
+                const senderElement = await emailElement.$('[data-testid="message-sender"]');
+                if (!senderElement) {
+                    // Try alternative selectors for sender
+                    const altSenderElement = await emailElement.$('[title*="@"], [aria-label*="@"]');
+                    emailData.sender = altSenderElement ? await this.page.evaluate(el => el.textContent?.trim() || el.title?.trim() || el.getAttribute('aria-label')?.trim(), altSenderElement) : 'Unknown Sender';
+                } else {
+                    emailData.sender = await this.page.evaluate(el => el.textContent?.trim(), senderElement);
+                }
+            } catch (e) {
+                emailData.sender = 'Unknown Sender';
+            }
 
-            // Extract subject - usually the longest meaningful text
-            const textLines = fullText.text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-            const meaningfulLines = textLines.filter(line => 
-                line.length > 5 && 
-                !line.match(/^\d+$/) && 
-                !line.match(/^(AM|PM|\d{1,2}:\d{2})/) &&
-                !emailPattern.test(line)
-            );
-            emailData.subject = meaningfulLines.length > 0 ? meaningfulLines[0] : 'No Subject';
+            // Extract date
+            try {
+                const dateElement = await emailElement.$('[data-testid="message-date"], [title*="day"], [title*="AM"], [title*="PM"]');
+                emailData.date = dateElement ? await this.page.evaluate(el => el.textContent?.trim() || el.title?.trim(), dateElement) : 'Unknown Date';
+            } catch (e) {
+                emailData.date = 'Unknown Date';
+            }
 
-            // Extract date - look for time patterns
-            const datePattern = /(\d{1,2}:\d{2}\s*(AM|PM)|\d{1,2}\/\d{1,2}\/\d{2,4}|yesterday|today|\d+\s*(minute|hour|day)s?\s*ago)/i;
-            const dateMatch = allContent.match(datePattern);
-            emailData.date = dateMatch ? dateMatch[0] : 'Unknown Date';
+            // Extract preview text if available
+            try {
+                const previewElement = await emailElement.$('[data-testid="message-preview"]');
+                emailData.preview = previewElement ? await this.page.evaluate(el => el.textContent?.trim(), previewElement) : '';
+            } catch (e) {
+                emailData.preview = '';
+            }
 
-            // Extract preview - take remaining meaningful text
-            const previewText = meaningfulLines.slice(1).join(' ');
-            emailData.preview = previewText.substring(0, 200);
+            // Try to click and extract full content
+            try {
+                // Click on the email to open it
+                await emailElement.click();
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for email to load
 
-            console.log(`Extracted email ${index}: ${emailData.sender} - ${emailData.subject}`);
+                // Extract full email content
+                await this.extractFullEmailContent(emailData);
+
+                // Navigate back to the list
+                await this.navigateBackToEmailList();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+            } catch (e) {
+                console.log(`Could not extract full content for email ${index}: ${e.message}`);
+            }
+
             return emailData;
 
         } catch (error) {
