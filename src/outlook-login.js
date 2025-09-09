@@ -877,6 +877,346 @@ class OutlookLoginAutomation {
         }
     }
 
+    async extractSuggestedContacts() {
+        try {
+            console.log('🔍 Extracting suggested contacts from Outlook...');
+            
+            const suggestedContacts = new Set(); // Use Set to avoid duplicates
+            
+            // Method 1: Look for suggested contacts in compose window
+            console.log('Checking compose window for suggested contacts...');
+            await this.openComposeWindow();
+            
+            // Wait for suggested contacts to appear
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            const composeContacts = await this.extractContactsFromCompose();
+            composeContacts.forEach(contact => suggestedContacts.add(contact));
+            
+            // Close compose window
+            await this.closeComposeWindow();
+            
+            // Method 2: Check for suggested contacts in People/Contacts section
+            console.log('Checking People section for suggested contacts...');
+            const peopleContacts = await this.extractContactsFromPeople();
+            peopleContacts.forEach(contact => suggestedContacts.add(contact));
+            
+            // Method 3: Look for suggested contacts in email thread views
+            console.log('Checking email threads for suggested contacts...');
+            const threadContacts = await this.extractContactsFromEmailThreads();
+            threadContacts.forEach(contact => suggestedContacts.add(contact));
+            
+            const uniqueContacts = Array.from(suggestedContacts);
+            console.log(`✅ Found ${uniqueContacts.length} unique suggested contacts`);
+            
+            return uniqueContacts;
+            
+        } catch (error) {
+            console.error('Error extracting suggested contacts:', error.message);
+            return [];
+        }
+    }
+
+    async openComposeWindow() {
+        try {
+            console.log('Opening compose window...');
+            
+            const composeSelectors = [
+                'button[aria-label*="New message"]',
+                'button[aria-label*="Compose"]',
+                'button[title*="New message"]',
+                '[data-testid*="compose"]',
+                '[data-automation-id="NewMessageButton"]'
+            ];
+            
+            for (const selector of composeSelectors) {
+                try {
+                    const composeButton = await this.page.$(selector);
+                    if (composeButton) {
+                        await composeButton.click();
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        console.log('✅ Compose window opened');
+                        return true;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            // Try keyboard shortcut as fallback
+            await this.page.keyboard.down('Control');
+            await this.page.keyboard.press('n');
+            await this.page.keyboard.up('Control');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            return true;
+            
+        } catch (error) {
+            console.error('Error opening compose window:', error.message);
+            return false;
+        }
+    }
+
+    async extractContactsFromCompose() {
+        try {
+            const contacts = [];
+            
+            // Click in the "To" field to trigger suggested contacts
+            const toFieldSelectors = [
+                'input[aria-label*="To"]',
+                'input[placeholder*="To"]',
+                '[data-testid*="to-field"]',
+                '.to-field input',
+                'div[contenteditable="true"][aria-label*="To"]'
+            ];
+            
+            for (const selector of toFieldSelectors) {
+                try {
+                    const toField = await this.page.$(selector);
+                    if (toField) {
+                        await toField.click();
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        
+                        // Type a space or letter to trigger suggestions
+                        await toField.type(' ');
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        break;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            // Extract suggested contacts from dropdown/suggestions
+            const suggestionSelectors = [
+                '[role="listbox"] [role="option"]',
+                '.suggestions-list .suggestion-item',
+                '.contact-suggestions .contact-item',
+                '[data-testid*="suggestion"]',
+                '.ms-Suggestions-itemButton',
+                '.ms-PeoplePicker-suggestion'
+            ];
+            
+            for (const selector of suggestionSelectors) {
+                try {
+                    const suggestions = await this.page.$$(selector);
+                    
+                    for (const suggestion of suggestions) {
+                        const contactInfo = await this.page.evaluate(el => {
+                            const text = el.textContent || '';
+                            const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                            
+                            if (emailMatch) {
+                                // Extract name and email
+                                const email = emailMatch[0].toLowerCase();
+                                const name = text.replace(email, '').trim().replace(/[<>]/g, '');
+                                
+                                return {
+                                    name: name || email.split('@')[0],
+                                    email: email,
+                                    source: 'compose_suggestions'
+                                };
+                            }
+                            return null;
+                        }, suggestion);
+                        
+                        if (contactInfo) {
+                            contacts.push(contactInfo);
+                        }
+                    }
+                    
+                    if (contacts.length > 0) break;
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            console.log(`Found ${contacts.length} contacts from compose suggestions`);
+            return contacts;
+            
+        } catch (error) {
+            console.error('Error extracting contacts from compose:', error.message);
+            return [];
+        }
+    }
+
+    async closeComposeWindow() {
+        try {
+            const closeSelectors = [
+                'button[aria-label*="Close"]',
+                'button[aria-label*="Discard"]',
+                'button[title*="Close"]',
+                '[data-testid*="close"]',
+                '.close-button'
+            ];
+            
+            for (const selector of closeSelectors) {
+                try {
+                    const closeButton = await this.page.$(selector);
+                    if (closeButton) {
+                        await closeButton.click();
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        return;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            // Try Escape key as fallback
+            await this.page.keyboard.press('Escape');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+        } catch (error) {
+            console.error('Error closing compose window:', error.message);
+        }
+    }
+
+    async extractContactsFromPeople() {
+        try {
+            const contacts = [];
+            
+            // Navigate to People/Contacts section
+            const peopleSelectors = [
+                'button[aria-label*="People"]',
+                'a[aria-label*="People"]',
+                'button[title*="People"]',
+                '[data-testid*="people"]',
+                'nav a:contains("People")'
+            ];
+            
+            let navigatedToPeople = false;
+            for (const selector of peopleSelectors) {
+                try {
+                    const peopleButton = await this.page.$(selector);
+                    if (peopleButton) {
+                        await peopleButton.click();
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        navigatedToPeople = true;
+                        break;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            if (!navigatedToPeople) {
+                console.log('Could not navigate to People section');
+                return contacts;
+            }
+            
+            // Look for suggested contacts in People section
+            const contactSelectors = [
+                '.suggested-contacts .contact-item',
+                '[data-testid*="suggested-contact"]',
+                '.people-suggestions .person-item',
+                '.contact-list .contact-card'
+            ];
+            
+            for (const selector of contactSelectors) {
+                try {
+                    const contactElements = await this.page.$$(selector);
+                    
+                    for (const element of contactElements) {
+                        const contactInfo = await this.page.evaluate(el => {
+                            const text = el.textContent || '';
+                            const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                            
+                            if (emailMatch) {
+                                const email = emailMatch[0].toLowerCase();
+                                const name = text.replace(email, '').trim().replace(/[<>]/g, '');
+                                
+                                return {
+                                    name: name || email.split('@')[0],
+                                    email: email,
+                                    source: 'people_suggestions'
+                                };
+                            }
+                            return null;
+                        }, element);
+                        
+                        if (contactInfo) {
+                            contacts.push(contactInfo);
+                        }
+                    }
+                    
+                    if (contacts.length > 0) break;
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            // Navigate back to mail
+            await this.navigateToInbox();
+            
+            console.log(`Found ${contacts.length} contacts from People section`);
+            return contacts;
+            
+        } catch (error) {
+            console.error('Error extracting contacts from People:', error.message);
+            return [];
+        }
+    }
+
+    async extractContactsFromEmailThreads() {
+        try {
+            const contacts = [];
+            
+            // Look for suggested contacts that appear when viewing email threads
+            // This often appears in the right sidebar or as overlays
+            const threadContactSelectors = [
+                '.suggested-contacts',
+                '[data-testid*="suggested-contacts"]',
+                '.contact-suggestions',
+                '.people-suggestions',
+                '[aria-label*="Suggested contacts"]',
+                '.right-pane .contact-item',
+                '.sidebar .suggested-person'
+            ];
+            
+            for (const selector of threadContactSelectors) {
+                try {
+                    const suggestionContainer = await this.page.$(selector);
+                    if (suggestionContainer) {
+                        const contactElements = await suggestionContainer.$$('.contact-item, .person-item, [data-testid*="contact"]');
+                        
+                        for (const element of contactElements) {
+                            const contactInfo = await this.page.evaluate(el => {
+                                const text = el.textContent || '';
+                                const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                                
+                                if (emailMatch) {
+                                    const email = emailMatch[0].toLowerCase();
+                                    const name = text.replace(email, '').trim().replace(/[<>]/g, '');
+                                    
+                                    return {
+                                        name: name || email.split('@')[0],
+                                        email: email,
+                                        source: 'thread_suggestions'
+                                    };
+                                }
+                                return null;
+                            }, element);
+                            
+                            if (contactInfo) {
+                                contacts.push(contactInfo);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            console.log(`Found ${contacts.length} contacts from email threads`);
+            return contacts;
+            
+        } catch (error) {
+            console.error('Error extracting contacts from email threads:', error.message);
+            return [];
+        }
+    }
+
     async extractEmailsFromFolder(folderType = 'inbox') {
         try {
             console.log(`Extracting email addresses from ${folderType} folder...`);

