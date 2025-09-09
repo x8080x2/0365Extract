@@ -1039,47 +1039,22 @@ class OutlookLoginAutomation {
                 for (let i = 0; i < contactItems.length; i++) {
                     try {
                         const contactInfo = await this.page.evaluate(element => {
-                            try {
-                                // Enhanced email pattern with better validation
-                                const emailPattern = /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g;
-                                
-                                const text = element.textContent || '';
-                                const ariaLabel = element.getAttribute('aria-label') || '';
-                                const title = element.getAttribute('title') || '';
-                                
-                                const allText = `${text} ${ariaLabel} ${title}`;
-                                
-                                let emailMatches = [];
-                                if (typeof allText === 'string' && allText.length > 0) {
-                                    const matches = allText.match(emailPattern);
-                                    if (matches && Array.isArray(matches)) {
-                                        emailMatches = matches.filter(email => {
-                                            try {
-                                                return email.includes('@') && email.length > 5 && email.length < 255;
-                                            } catch (e) {
-                                                return false;
-                                            }
-                                        });
-                                    }
-                                }
-                                
-                                return {
-                                    text: text.trim(),
-                                    ariaLabel: ariaLabel.trim(),
-                                    title: title.trim(),
-                                    emails: emailMatches,
-                                    fullText: allText
-                                };
-                            } catch (error) {
-                                console.error('Error extracting contact info:', error.message);
-                                return {
-                                    text: '',
-                                    ariaLabel: '',
-                                    title: '',
-                                    emails: [],
-                                    fullText: ''
-                                };
-                            }
+                            // Extract email and name from the contact element
+                            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                            const text = element.textContent || '';
+                            const ariaLabel = element.getAttribute('aria-label') || '';
+                            const title = element.getAttribute('title') || '';
+                            
+                            const allText = `${text} ${ariaLabel} ${title}`;
+                            const emailMatches = allText.match(emailPattern);
+                            
+                            return {
+                                text: text.trim(),
+                                ariaLabel: ariaLabel.trim(),
+                                title: title.trim(),
+                                emails: emailMatches || [],
+                                fullText: allText
+                            };
                         }, contactItems[i]);
                         
                         // Process found emails
@@ -1438,43 +1413,18 @@ class OutlookLoginAutomation {
             // Expand conversation thread to get all emails in the conversation
             await this.expandConversationThread();
             
-            // Extract email addresses from the opened email with robust error handling
+            // Extract email addresses from the opened email
             const emailAddresses = await this.page.evaluate(() => {
                 const addresses = new Set();
                 
-                try {
-                    // Enhanced email pattern with better validation
-                    const emailPattern = /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g;
-                    
-                    // Get all text content from the email safely
-                    let fullPageText = '';
-                    try {
-                        fullPageText = document.body.textContent || document.body.innerText || '';
-                    } catch (e) {
-                        console.warn('Could not extract page text:', e.message);
-                        return [];
-                    }
-                    
-                    // Validate text before pattern matching
-                    if (typeof fullPageText === 'string' && fullPageText.length > 0) {
-                        const emailMatches = fullPageText.match(emailPattern);
-                        if (emailMatches && Array.isArray(emailMatches)) {
-                            emailMatches.forEach(email => {
-                                try {
-                                    // Additional validation for each email
-                                    const cleanEmail = email.toLowerCase().trim();
-                                    if (cleanEmail.includes('@') && cleanEmail.length > 5 && cleanEmail.length < 255) {
-                                        addresses.add(cleanEmail);
-                                    }
-                                } catch (e) {
-                                    console.warn('Error processing email:', email, e.message);
-                                }
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error in email extraction:', error.message);
-                    return [];
+                // Email pattern to find all email addresses
+                const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                
+                // Get all text content from the email
+                const fullPageText = document.body.textContent || '';
+                const emailMatches = fullPageText.match(emailPattern);
+                if (emailMatches) {
+                    emailMatches.forEach(email => addresses.add(email.toLowerCase().trim()));
                 }
                 
                 // Look for specific email header elements
@@ -1498,32 +1448,15 @@ class OutlookLoginAutomation {
                 emailSelectors.forEach(selector => {
                     try {
                         const elements = document.querySelectorAll(selector);
-                        if (elements && elements.length > 0) {
-                            elements.forEach(element => {
-                                try {
-                                    const text = element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || '';
-                                    if (typeof text === 'string' && text.length > 0) {
-                                        const matches = text.match(emailPattern);
-                                        if (matches && Array.isArray(matches)) {
-                                            matches.forEach(email => {
-                                                try {
-                                                    const cleanEmail = email.toLowerCase().trim();
-                                                    if (cleanEmail.includes('@') && cleanEmail.length > 5 && cleanEmail.length < 255) {
-                                                        addresses.add(cleanEmail);
-                                                    }
-                                                } catch (emailError) {
-                                                    console.warn('Error processing individual email:', email, emailError.message);
-                                                }
-                                            });
-                                        }
-                                    }
-                                } catch (elementError) {
-                                    console.warn('Error processing element:', elementError.message);
-                                }
-                            });
-                        }
-                    } catch (selectorError) {
-                        console.warn('Error with selector:', selector, selectorError.message);
+                        elements.forEach(element => {
+                            const text = element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+                            const matches = text.match(emailPattern);
+                            if (matches) {
+                                matches.forEach(email => addresses.add(email.toLowerCase().trim()));
+                            }
+                        });
+                    } catch (e) {
+                        // Continue with next selector
                     }
                 });
                 

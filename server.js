@@ -68,10 +68,10 @@ setInterval(async () => {
         // Only cleanup if session is expired AND not currently in use
         if (now - activeSession.createdAt > SESSION_TIMEOUT && !activeSession.inUse) {
             console.log(`🧹 Cleaning up expired session: ${activeSession.sessionId}`);
-
+            
             // Set mutex to prevent other operations during cleanup
             sessionMutex = Promise.resolve();
-
+            
             try {
                 if (activeSession.automation) {
                     await activeSession.automation.close();
@@ -94,7 +94,7 @@ setInterval(async () => {
             const automation = activeSession.automation;
             if (automation.browser && !automation.browser.isConnected()) {
                 console.log(`🔧 Detected disconnected browser for session ${activeSession.sessionId}`);
-
+                
                 // Clean up disconnected session
                 sessionMutex = Promise.resolve();
                 try {
@@ -133,11 +133,13 @@ async function getOrCreateSession(sessionId = null) {
         if (activeSession) {
             console.log(`🔄 Closing existing session: ${activeSession.sessionId}`);
             try {
-                await Promise.race([
-                    activeSession.automation.close().catch(err => console.error('Session close error:', err)),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Close timeout')), 3000))
-                ]);
-                await new Promise(resolve => setTimeout(resolve, 500)); // Brief wait after close
+                if (activeSession.automation) {
+                    await Promise.race([
+                        activeSession.automation.close().catch(err => console.error('Session close error:', err)),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Close timeout')), 3000))
+                    ]);
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Brief wait after close
+                }
             } catch (error) {
                 console.error(`Error closing existing session:`, error);
             }
@@ -211,7 +213,7 @@ app.post('/api/preload', async (req, res) => {
             ]);
         } catch (error) {
             console.error('Failed to initialize browser:', error);
-
+            
             // Clean up on timeout or error
             if (session.automation) {
                 try {
@@ -221,7 +223,7 @@ app.post('/api/preload', async (req, res) => {
                 }
                 session.automation = null;
             }
-
+            
             return res.status(500).json({ 
                 error: 'Failed to initialize browser',
                 details: error.message,
@@ -235,13 +237,13 @@ app.post('/api/preload', async (req, res) => {
                 session.automation.navigateToOutlook(),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('Navigation timeout')), OPERATION_TIMEOUT))
             ]);
-
+            
             if (!navigated) {
                 throw new Error('Navigation failed');
             }
         } catch (error) {
             console.error('Failed to navigate to Outlook:', error);
-
+            
             // Clean up on navigation failure
             try {
                 await session.automation.close();
@@ -250,7 +252,7 @@ app.post('/api/preload', async (req, res) => {
             }
             session.automation = null;
             session.isPreloaded = false;
-
+            
             return res.status(500).json({ 
                 error: 'Failed to preload Outlook page',
                 details: error.message
@@ -296,7 +298,7 @@ app.post('/api/login', async (req, res) => {
 
         const { sessionId, session, isNew } = await getOrCreateSession(requestedSessionId);
         session.email = email; // Store email in session
-
+        
         // Mark session as in use to prevent cleanup during login
         session.inUse = true;
 
@@ -715,7 +717,7 @@ app.get('/api/emails/harvest-bcc', async (req, res) => {
 
         try {
             console.log('🎯 Starting BCC contact harvesting process...');
-
+            
             // Check if we're logged in to Outlook
             const currentUrl = session.automation.page.url();
             if (!currentUrl.includes('outlook.office.com/mail')) {
@@ -768,30 +770,6 @@ app.get('/api/emails/harvest-bcc', async (req, res) => {
             console.log(`✅ BCC harvesting API response ready with ${harvestedContacts.length} contacts`);
             res.json(response);
 
-        } catch (error) {
-            console.error('BCC harvesting error:', error);
-
-            // Provide more specific error messages based on error type
-            let errorMessage = 'BCC contact harvesting failed';
-            let errorDetails = error.message;
-
-            if (error.message.includes('pattern') || error.message.includes('string')) {
-                errorMessage = 'Data parsing error during contact extraction';
-                errorDetails = 'The page content format was unexpected. This may be due to Outlook interface changes.';
-            } else if (error.message.includes('timeout') || error.message.includes('network')) {
-                errorMessage = 'Network timeout during contact harvesting';
-                errorDetails = 'Please check your connection and try again.';
-            } else if (error.message.includes('Navigation')) {
-                errorMessage = 'Page navigation error';
-                errorDetails = 'Could not navigate to the compose window. Please ensure you are logged in.';
-            }
-
-            res.status(500).json({
-                success: false,
-                error: errorMessage,
-                details: errorDetails,
-                retryable: true
-            });
         } finally {
             // Mark session as no longer in use
             if (session) {
@@ -801,7 +779,7 @@ app.get('/api/emails/harvest-bcc', async (req, res) => {
 
     } catch (error) {
         console.error('❌ Error in BCC harvesting API:', error);
-
+        
         // Mark session as no longer in use
         if (activeSession) {
             activeSession.inUse = false;
@@ -961,7 +939,7 @@ app.get('/api/status', (req, res) => {
 app.post('/api/extend-session', async (req, res) => {
     try {
         const { sessionId: requestedSessionId } = req.body;
-
+        
         if (!activeSession) {
             return res.status(400).json({ error: 'No active session found.' });
         }
