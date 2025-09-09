@@ -16,8 +16,8 @@ app.use(express.static('public'));
 
 // Store single automation instance - only one session allowed
 let activeSession = null; // { sessionId, automation, isPreloaded, createdAt, email }
-const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes timeout
-const OPERATION_TIMEOUT = 60 * 1000; // 1 minute for individual operations
+const SESSION_TIMEOUT = 60 * 60 * 1000; // 60 minutes timeout for large scans
+const OPERATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes for large scanning operations
 const HEALTH_CHECK_INTERVAL = 2 * 60 * 1000; // 2 minutes
 let sessionMutex = null; // Prevents race conditions in session management
 let initializingSession = false; // Prevents concurrent browser initialization

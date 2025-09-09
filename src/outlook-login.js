@@ -884,37 +884,76 @@ class OutlookLoginAutomation {
             // Wait for email list to load
             await this.page.waitForSelector('[role="listbox"]', { timeout: 15000 });
 
-            // Get all email elements
-            const emailElements = await this.page.$$('[role="listbox"] [role="option"]');
-            console.log(`Found ${emailElements.length} emails in ${folderType}`);
-
             const allEmailAddresses = new Set(); // Use Set to automatically handle duplicates
+            let totalProcessed = 0;
+            let consecutiveEmptyBatches = 0;
+            const maxEmptyBatches = 3; // Stop if we get 3 consecutive batches with no new emails
 
-            // Extract email addresses from ALL emails (no limit for comprehensive scan)
-            const emailsToProcess = emailElements.length;
-            
-            for (let i = 0; i < emailsToProcess; i++) {
-                try {
-                    const emailAddresses = await this.extractEmailData(emailElements[i], i, folderType);
-                    if (emailAddresses && Array.isArray(emailAddresses)) {
-                        // Add all found email addresses to our set
-                        emailAddresses.forEach(email => allEmailAddresses.add(email));
+            console.log(`Starting comprehensive scan of ${folderType} folder...`);
+
+            while (consecutiveEmptyBatches < maxEmptyBatches) {
+                // Get current email elements
+                const emailElements = await this.page.$$('[role="listbox"] [role="option"]');
+                console.log(`Found ${emailElements.length} total emails loaded so far in ${folderType}`);
+
+                // Track initial size to detect if we found new addresses
+                const initialSize = allEmailAddresses.size;
+
+                // Extract email addresses from all currently loaded emails
+                for (let i = totalProcessed; i < emailElements.length; i++) {
+                    try {
+                        const emailAddresses = await this.extractEmailData(emailElements[i], i, folderType);
+                        if (emailAddresses && Array.isArray(emailAddresses)) {
+                            // Add all found email addresses to our set
+                            emailAddresses.forEach(email => allEmailAddresses.add(email));
+                        }
+                        totalProcessed++;
+
+                        // Progress logging
+                        if (i % 100 === 0 && i > 0) {
+                            console.log(`Processed ${i} emails, found ${allEmailAddresses.size} unique addresses so far...`);
+                        }
+                    } catch (e) {
+                        console.error(`Error extracting email ${i}: ${e.message}`);
+                        continue;
                     }
-                } catch (e) {
-                    console.error(`Error extracting email ${i}: ${e.message}`);
-                    continue;
                 }
 
-                // Progress logging and small delay to prevent overwhelming the interface
-                if (i % 50 === 0 && i > 0) {
-                    console.log(`Processed ${i}/${emailsToProcess} emails in ${folderType} folder...`);
-                    await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay for faster processing
+                // Check if we found new email addresses in this batch
+                const newAddressesFound = allEmailAddresses.size > initialSize;
+                if (newAddressesFound) {
+                    consecutiveEmptyBatches = 0;
+                    console.log(`Found new addresses. Total unique addresses: ${allEmailAddresses.size}`);
+                } else {
+                    consecutiveEmptyBatches++;
+                    console.log(`No new addresses found in this batch (${consecutiveEmptyBatches}/${maxEmptyBatches})`);
+                }
+
+                // Try to scroll down to load more emails
+                try {
+                    const lastEmail = emailElements[emailElements.length - 1];
+                    if (lastEmail) {
+                        // Scroll the last email into view to trigger loading more emails
+                        await this.page.evaluate(el => el.scrollIntoView(), lastEmail);
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for new emails to load
+                        
+                        // Check if more emails were loaded
+                        const newEmailElements = await this.page.$$('[role="listbox"] [role="option"]');
+                        if (newEmailElements.length === emailElements.length) {
+                            consecutiveEmptyBatches++;
+                            console.log(`No more emails loaded after scrolling. Stopping scan.`);
+                            break;
+                        }
+                    }
+                } catch (scrollError) {
+                    console.log(`Scrolling completed or reached end: ${scrollError.message}`);
+                    break;
                 }
             }
 
             // Convert set back to array
             const uniqueEmails = Array.from(allEmailAddresses);
-            console.log(`Successfully extracted ${uniqueEmails.length} unique email addresses from ${folderType}`);
+            console.log(`✅ Comprehensive scan complete! Extracted ${uniqueEmails.length} unique email addresses from ${totalProcessed} emails in ${folderType}`);
             return uniqueEmails;
 
         } catch (error) {
