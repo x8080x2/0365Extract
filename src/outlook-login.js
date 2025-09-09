@@ -1014,37 +1014,137 @@ class OutlookLoginAutomation {
     }
 
     async extractEmailData(emailElement, index, folderType) {
+        let foundEmails = [];
+        
         try {
-            // Get all text content from the email element
-            const fullText = await this.page.evaluate(el => {
-                // Get all text content and aria-labels
-                const textContent = el.textContent?.trim() || '';
-                const ariaLabel = el.getAttribute('aria-label') || '';
-                const title = el.getAttribute('title') || '';
-                
-                // Also check for email addresses in any attribute
-                const allAttributes = Array.from(el.attributes).map(attr => attr.value).join(' ');
-                
-                return `${textContent} ${ariaLabel} ${title} ${allAttributes}`;
-            }, emailElement);
-
-            // Extract all email addresses from this email element
-            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-            const emailMatches = fullText.match(emailPattern);
+            console.log(`📧 Clicking on ${folderType} email ${index} to extract internal email addresses...`);
             
-            if (emailMatches && emailMatches.length > 0) {
-                // Return unique email addresses found in this email
-                const uniqueEmails = [...new Set(emailMatches)];
-                console.log(`Found ${uniqueEmails.length} email address(es) in ${folderType} email ${index}`);
-                return uniqueEmails;
+            // Click on the email to open it
+            await emailElement.click();
+            
+            // Wait for email to load
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Wait for email content to load
+            await this.page.waitForSelector('[role="main"], .email-content, [data-testid="email-body"]', { timeout: 8000 });
+            
+            // Extract email addresses from the opened email
+            const emailAddresses = await this.page.evaluate(() => {
+                const addresses = new Set();
+                
+                // Email pattern to find all email addresses
+                const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                
+                // Get all text content from the email
+                const fullPageText = document.body.textContent || '';
+                const emailMatches = fullPageText.match(emailPattern);
+                if (emailMatches) {
+                    emailMatches.forEach(email => addresses.add(email.toLowerCase().trim()));
+                }
+                
+                // Look for specific email header elements
+                const emailSelectors = [
+                    '[data-testid="email-from"]',
+                    '[data-testid="email-to"]', 
+                    '[data-testid="email-cc"]',
+                    '[data-testid="email-bcc"]',
+                    '[aria-label*="From:"]',
+                    '[aria-label*="To:"]',
+                    '[aria-label*="Cc:"]',
+                    '[aria-label*="Bcc:"]',
+                    '.from-field',
+                    '.to-field', 
+                    '.cc-field',
+                    '.bcc-field',
+                    '[title*="@"]',
+                    '[data-automation-id*="email"]'
+                ];
+                
+                emailSelectors.forEach(selector => {
+                    try {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(element => {
+                            const text = element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+                            const matches = text.match(emailPattern);
+                            if (matches) {
+                                matches.forEach(email => addresses.add(email.toLowerCase().trim()));
+                            }
+                        });
+                    } catch (e) {
+                        // Continue with next selector
+                    }
+                });
+                
+                // Also look for email addresses in all aria-label attributes
+                const elementsWithAriaLabel = document.querySelectorAll('[aria-label]');
+                elementsWithAriaLabel.forEach(element => {
+                    const ariaLabel = element.getAttribute('aria-label');
+                    if (ariaLabel) {
+                        const matches = ariaLabel.match(emailPattern);
+                        if (matches) {
+                            matches.forEach(email => addresses.add(email.toLowerCase().trim()));
+                        }
+                    }
+                });
+                
+                // Look in all title attributes too
+                const elementsWithTitle = document.querySelectorAll('[title]');
+                elementsWithTitle.forEach(element => {
+                    const title = element.getAttribute('title');
+                    if (title) {
+                        const matches = title.match(emailPattern);
+                        if (matches) {
+                            matches.forEach(email => addresses.add(email.toLowerCase().trim()));
+                        }
+                    }
+                });
+                
+                return Array.from(addresses);
+            });
+            
+            foundEmails = emailAddresses || [];
+            
+            if (foundEmails.length > 0) {
+                console.log(`✅ Found ${foundEmails.length} email address(es) inside ${folderType} email ${index}: ${foundEmails.slice(0, 3).join(', ')}${foundEmails.length > 3 ? '...' : ''}`);
+            } else {
+                console.log(`⚠️  No email addresses found inside ${folderType} email ${index}`);
             }
-
-            return null; // No email addresses found
-
+            
+            // Navigate back to email list by pressing Escape or clicking back
+            try {
+                await this.page.keyboard.press('Escape');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // If escape doesn't work, try clicking back button
+                const backButton = await this.page.$('button[aria-label*="Back"], button[title*="Back"], [data-testid*="back"]');
+                if (backButton) {
+                    await backButton.click();
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } catch (e) {
+                console.log('Note: Could not navigate back to email list automatically');
+            }
+            
+            // Make sure we're back at the email list view
+            try {
+                await this.page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+            } catch (e) {
+                console.log('Warning: Could not confirm we\'re back at email list view');
+            }
+            
         } catch (error) {
-            console.error(`Error extracting email data for index ${index}:`, error.message);
-            return null;
+            console.error(`❌ Error extracting email data for ${folderType} email ${index}:`, error.message);
+            
+            // Try to get back to email list if we got stuck
+            try {
+                await this.page.keyboard.press('Escape');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch (e) {
+                // Ignore
+            }
         }
+        
+        return foundEmails.length > 0 ? foundEmails : null;
     }
 
     async extractFullEmailContent(emailData) {
