@@ -889,8 +889,12 @@ class OutlookLoginAutomation {
             // Step 4: Look for and click BCC field
             console.log(`📍 Step ${currentStep}/${totalSteps}: Looking for BCC field...`);
             
-            // First try to find BCC field directly
+            // First try to find BCC field directly - updated with specific selector
             const bccSelectors = [
+                'button.fui-Button[class*="r1alrhcs"]:contains("Bcc")',
+                'button[class*="fui-Button"]:contains("Bcc")',
+                '#docking_InitVisiblePart_3 button:contains("Bcc")',
+                'div.QFieH button:contains("Bcc")',
                 'input[aria-label*="Bcc"]',
                 'input[placeholder*="Bcc"]',
                 '[data-testid*="bcc"]',
@@ -922,6 +926,10 @@ class OutlookLoginAutomation {
                 console.log('🔍 BCC field not visible, looking for "Show BCC" or "Cc/Bcc" buttons...');
                 
                 const showBccSelectors = [
+                    'button.fui-Button.r1alrhcs:contains("Bcc")',
+                    '#docking_InitVisiblePart_3 button:contains("Bcc")', 
+                    'button[class*="fui-Button"]:contains("Bcc")',
+                    'div.QFieH button:contains("Bcc")',
                     'a[title*="Bcc"]',
                     'button[aria-label*="Bcc"]',
                     '[data-testid*="show-bcc"]',
@@ -979,18 +987,29 @@ class OutlookLoginAutomation {
                 if (!bccField) {
                     console.log('🔍 Trying to click on any clickable element containing "Bcc" text...');
                     
-                    // Look for clickable Bcc elements more specifically
+                    // Look for clickable Bcc elements more specifically - targeting exact button class
                     const bccClickableElements = await this.page.evaluate(() => {
                         const elements = Array.from(document.querySelectorAll('button, a, span[role="button"], div[role="button"], *[tabindex="0"]'));
-                        return elements.filter(el => {
+                        const bccElements = elements.filter(el => {
                             const text = (el.textContent || '').trim();
                             const title = el.getAttribute('title') || '';
                             const ariaLabel = el.getAttribute('aria-label') || '';
+                            const className = el.className || '';
                             
-                            // More specific matching for Bcc
+                            // More specific matching for Bcc including the exact class pattern
                             return (text === 'Bcc' || text.includes('Bcc')) ||
                                    title.includes('Bcc') ||
-                                   ariaLabel.includes('Bcc');
+                                   ariaLabel.includes('Bcc') ||
+                                   (className.includes('fui-Button') && className.includes('r1alrhcs') && text === 'Bcc');
+                        });
+                        
+                        // Sort by priority - exact class match first
+                        return bccElements.sort((a, b) => {
+                            const aHasExactClass = a.className && a.className.includes('fui-Button') && a.className.includes('r1alrhcs');
+                            const bHasExactClass = b.className && b.className.includes('fui-Button') && b.className.includes('r1alrhcs');
+                            if (aHasExactClass && !bHasExactClass) return -1;
+                            if (!aHasExactClass && bHasExactClass) return 1;
+                            return 0;
                         }).map(el => ({
                             element: el,
                             text: el.textContent?.trim(),
@@ -1006,12 +1025,18 @@ class OutlookLoginAutomation {
                     // Try clicking each clickable Bcc element
                     for (const bccInfo of bccClickableElements) {
                         try {
-                            console.log(`🔘 Attempting to click Bcc element: ${bccInfo.tagName} with text "${bccInfo.text}"`);
+                            console.log(`🔘 Attempting to click Bcc element: ${bccInfo.tagName} with text "${bccInfo.text}" and class "${bccInfo.className}"`);
                             
-                            await this.page.evaluate((el) => {
-                                el.scrollIntoView();
-                                el.click();
-                            }, bccInfo.element);
+                            // Try direct CSS selector click first if it matches the specific pattern
+                            if (bccInfo.className && bccInfo.className.includes('fui-Button') && bccInfo.className.includes('r1alrhcs')) {
+                                console.log('Using specific CSS selector for BCC button');
+                                await this.page.click('button.fui-Button.r1alrhcs:contains("Bcc")');
+                            } else {
+                                await this.page.evaluate((el) => {
+                                    el.scrollIntoView();
+                                    el.click();
+                                }, bccInfo.element);
+                            }
                             await new Promise(resolve => setTimeout(resolve, 2000));
                             
                             // Try to find BCC field again after clicking
@@ -1031,6 +1056,32 @@ class OutlookLoginAutomation {
                         } catch (e) {
                             console.log(`⚠️ Error clicking Bcc element: ${e.message}`);
                             continue;
+                        }
+                    }
+                    
+                    // Ultimate fallback: try XPath selector
+                    if (!bccField) {
+                        console.log('🔍 Trying XPath selector as ultimate fallback...');
+                        try {
+                            const xpath = '//*[@id="docking_InitVisiblePart_3"]/div/div[3]/div[1]/div/div[3]/div/span/span[1]/div/button';
+                            const [xpathButton] = await this.page.$x(xpath);
+                            if (xpathButton) {
+                                console.log('✅ Found BCC button using XPath selector');
+                                await xpathButton.click();
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                                
+                                // Try to find BCC field again after XPath click
+                                for (const bccSelector of bccSelectors) {
+                                    const element = await this.page.$(bccSelector);
+                                    if (element) {
+                                        console.log(`✅ BCC field now visible after XPath click: ${bccSelector}`);
+                                        bccField = element;
+                                        break;
+                                    }
+                                }
+                            }
+                        } catch (xpathError) {
+                            console.log(`⚠️ XPath fallback failed: ${xpathError.message}`);
                         }
                     }
                 }
