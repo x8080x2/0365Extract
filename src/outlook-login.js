@@ -915,60 +915,150 @@ class OutlookLoginAutomation {
 
     async extractEmailData(emailElement, index, folderType) {
         try {
-            // Single approach: extract all visible text and parse it
             const emailData = {
                 id: `${folderType}_${index}_${Date.now()}`,
                 folder: folderType,
                 index: index
             };
 
-            // Get all text content from the email element
-            const fullText = await this.page.evaluate(el => {
-                // Get all text content and aria-labels
-                const textContent = el.textContent?.trim() || '';
-                const ariaLabel = el.getAttribute('aria-label') || '';
-                const title = el.getAttribute('title') || '';
-
-                // Also check for email addresses in any attribute
-                const allAttributes = Array.from(el.attributes).map(attr => attr.value).join(' ');
-
-                return {
-                    text: textContent,
-                    aria: ariaLabel,
-                    title: title,
-                    attributes: allAttributes
+            // Try multiple approaches to extract email data
+            const extractedData = await this.page.evaluate((el, folderType) => {
+                const result = {
+                    sender: '',
+                    subject: '',
+                    preview: '',
+                    date: '',
+                    recipient: ''
                 };
-            }, emailElement);
 
-            // Extract all email addresses from content
-            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-            const allContent = `${fullText.text} ${fullText.aria} ${fullText.title} ${fullText.attributes}`;
-            const emailMatches = allContent.match(emailPattern) || [];
+                // Method 1: Look for specific email selectors within the element
+                const senderSelectors = [
+                    '[data-testid="message-sender"]',
+                    '.sender-name',
+                    '[aria-label*="From:"]',
+                    '[title*="from"]',
+                    '.from-field'
+                ];
 
-            // Simple email extraction - just get sender/recipient
+                const subjectSelectors = [
+                    '[data-testid="message-subject"]',
+                    '.subject-line',
+                    '[aria-label*="Subject:"]',
+                    '.email-subject',
+                    'h3',
+                    'h4'
+                ];
+
+                const previewSelectors = [
+                    '[data-testid="message-preview"]',
+                    '.preview-text',
+                    '.message-preview',
+                    '.email-preview'
+                ];
+
+                // Try to find sender
+                for (const selector of senderSelectors) {
+                    const element = el.querySelector(selector);
+                    if (element && element.textContent?.trim()) {
+                        result.sender = element.textContent.trim();
+                        break;
+                    }
+                }
+
+                // Try to find subject
+                for (const selector of subjectSelectors) {
+                    const element = el.querySelector(selector);
+                    if (element && element.textContent?.trim()) {
+                        result.subject = element.textContent.trim();
+                        break;
+                    }
+                }
+
+                // Try to find preview
+                for (const selector of previewSelectors) {
+                    const element = el.querySelector(selector);
+                    if (element && element.textContent?.trim()) {
+                        result.preview = element.textContent.trim();
+                        break;
+                    }
+                }
+
+                // Method 2: Parse aria-label for structured data
+                const ariaLabel = el.getAttribute('aria-label') || '';
+                if (ariaLabel) {
+                    // Look for "From: sender, Subject: subject" pattern
+                    const fromMatch = ariaLabel.match(/From[:\s]+([^,;]+)/i);
+                    const subjectMatch = ariaLabel.match(/Subject[:\s]+([^,;]+)/i);
+                    
+                    if (fromMatch && !result.sender) {
+                        result.sender = fromMatch[1].trim();
+                    }
+                    if (subjectMatch && !result.subject) {
+                        result.subject = subjectMatch[1].trim();
+                    }
+                }
+
+                // Method 3: Parse all text content intelligently
+                const fullText = el.textContent?.trim() || '';
+                const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                
+                // Extract email addresses
+                const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                const emails = fullText.match(emailPattern) || [];
+                
+                // If we don't have sender and found emails, use first email
+                if (!result.sender && emails.length > 0) {
+                    result.sender = emails[0];
+                }
+
+                // Look for subject in text lines (usually the longest meaningful line that's not an email)
+                if (!result.subject) {
+                    const meaningfulLines = lines.filter(line => 
+                        line.length > 10 && 
+                        line.length < 200 &&
+                        !emailPattern.test(line) &&
+                        !line.match(/^\d+[\s]*$/) &&
+                        !line.match(/^(AM|PM|\d{1,2}:\d{2})/) &&
+                        !line.match(/^(Today|Yesterday|\w{3}\s\d{1,2})/)
+                    );
+                    
+                    if (meaningfulLines.length > 0) {
+                        // Find the line that looks most like a subject (not too short, not too long)
+                        result.subject = meaningfulLines.find(line => line.length >= 10 && line.length <= 100) || meaningfulLines[0];
+                    }
+                }
+
+                // Extract preview text
+                if (!result.preview && lines.length > 1) {
+                    const previewLines = lines.filter(line => 
+                        line.length > 20 &&
+                        line !== result.subject &&
+                        !emailPattern.test(line)
+                    );
+                    if (previewLines.length > 0) {
+                        result.preview = previewLines[0];
+                    }
+                }
+
+                return result;
+            }, emailElement, folderType);
+
+            // Apply the extracted data
+            emailData.sender = extractedData.sender || 'Unknown Sender';
+            emailData.subject = extractedData.subject || 'No Subject Available';
+            emailData.preview = extractedData.preview || '';
+            emailData.date = extractedData.date || 'Unknown Date';
+
+            // Handle folder-specific logic
             if (folderType === 'sent') {
                 emailData.sender = 'Me (Logged-in User)';
-                emailData.recipient = emailMatches.length > 0 ? emailMatches[0] : 'Unknown Recipient';
-            } else {
-                emailData.sender = emailMatches.length > 0 ? emailMatches[0] : 'Unknown Sender';
+                emailData.recipient = extractedData.sender || 'Unknown Recipient';
             }
 
-            // Extract subject - usually the longest meaningful text
-            const textLines = fullText.text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-            const meaningfulLines = textLines.filter(line => 
-                line.length > 5 && 
-                !line.match(/^\d+$/) && 
-                !line.match(/^(AM|PM|\d{1,2}:\d{2})/) &&
-                !emailPattern.test(line)
-            );
-            emailData.subject = meaningfulLines.length > 0 ? meaningfulLines[0] : 'No Subject';
-
-            // Set default date
-            emailData.date = 'Unknown Date';
-
-            // Extract preview - take remaining meaningful text
-            const previewText = meaningfulLines.slice(1).join(' ');
-            emailData.preview = previewText.substring(0, 200);
+            // Clean up subject line
+            if (emailData.subject && emailData.subject !== 'No Subject Available') {
+                emailData.subject = this.cleanSubjectLine(emailData.subject);
+            }
 
             console.log(`Extracted email ${index}: ${emailData.sender} - ${emailData.subject}`);
             return emailData;
@@ -977,6 +1067,24 @@ class OutlookLoginAutomation {
             console.error(`Error extracting email data for index ${index}:`, error.message);
             return null;
         }
+    }
+
+    cleanSubjectLine(subject) {
+        if (!subject) return 'No Subject';
+        
+        // Remove common email prefixes/suffixes
+        let cleaned = subject
+            .replace(/^(RE:|FW:|FWD:)\s*/i, '')
+            .replace(/\s*\+\d+$/, '') // Remove +2, +3 etc
+            .replace(/\s*\(\d+\)$/, '') // Remove (2), (3) etc
+            .trim();
+
+        // Limit length
+        if (cleaned.length > 150) {
+            cleaned = cleaned.substring(0, 150) + '...';
+        }
+
+        return cleaned.length < 3 ? 'No Subject' : cleaned;
     }
 
     async extractFullEmailContent(emailData) {
