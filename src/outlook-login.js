@@ -923,10 +923,7 @@ class OutlookLoginAutomation {
                 
                 const showBccSelectors = [
                     'a[title*="Bcc"]',
-                    'a:contains("Bcc")',
                     'button[aria-label*="Bcc"]',
-                    'button:contains("Bcc")',
-                    'button:contains("Cc")',
                     '[data-testid*="show-bcc"]',
                     '.show-cc-bcc',
                     'button[title*="Bcc"]',
