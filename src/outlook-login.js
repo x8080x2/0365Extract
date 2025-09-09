@@ -957,12 +957,6 @@ class OutlookLoginAutomation {
             console.log(`📍 Step ${currentStep}/${totalSteps}: Clicking on BCC field to trigger contact suggestions...`);
             await bccField.click();
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Also try typing a space or common letters to trigger more suggestions
-            await bccField.type(' ');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            await this.page.keyboard.press('Backspace');
-            await new Promise(resolve => setTimeout(resolve, 1000));
             currentStep++;
             
             // Step 6: Start harvesting suggested contacts
@@ -1007,17 +1001,6 @@ class OutlookLoginAutomation {
                 if (!suggestionContainer) {
                     console.log(`⚠️ No suggestion container found in round ${harvestRound}`);
                     consecutiveNoContacts++;
-                    
-                    // Try to trigger suggestions again by typing different characters
-                    const triggerChars = ['a', 'e', 'i', 'o', 'u', 'm', 's', 't'];
-                    const randomChar = triggerChars[Math.floor(Math.random() * triggerChars.length)];
-                    
-                    console.log(`🔤 Trying to trigger suggestions with character: ${randomChar}`);
-                    await bccField.type(randomChar);
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    await this.page.keyboard.press('Backspace');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    
                     harvestRound++;
                     continue;
                 }
@@ -1099,55 +1082,8 @@ class OutlookLoginAutomation {
             }
             currentStep++;
             
-            // Step 7: Try alternative harvesting methods
-            console.log(`📍 Step ${currentStep}/${totalSteps}: Trying alternative contact discovery methods...`);
-            
-            // Try typing common email patterns to trigger more suggestions
-            const commonPatterns = ['@gmail', '@outlook', '@yahoo', '@hotmail', '@company', '.com', '.co'];
-            
-            for (const pattern of commonPatterns) {
-                try {
-                    console.log(`🔍 Trying pattern: ${pattern}`);
-                    await bccField.click();
-                    await bccField.type(pattern);
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    
-                    // Look for new suggestions
-                    const newSuggestions = await this.page.$$('[role="listbox"] [role="option"], .suggestions-container [role="option"]');
-                    for (const suggestion of newSuggestions) {
-                        try {
-                            const suggestionText = await this.page.evaluate(el => el.textContent, suggestion);
-                            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-                            const emails = suggestionText.match(emailPattern);
-                            
-                            if (emails) {
-                                for (const email of emails) {
-                                    if (!harvestedContacts.has(email.toLowerCase())) {
-                                        harvestedContacts.add(email.toLowerCase());
-                                        console.log(`✅ Pattern-based contact found: ${email}`);
-                                    }
-                                }
-                            }
-                            
-                            await suggestion.click();
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        } catch (e) {
-                            continue;
-                        }
-                    }
-                    
-                    // Clear the field
-                    await this.page.keyboard.down('Control');
-                    await this.page.keyboard.press('KeyA');
-                    await this.page.keyboard.up('Control');
-                    await this.page.keyboard.press('Delete');
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                } catch (e) {
-                    console.log(`⚠️ Error with pattern ${pattern}: ${e.message}`);
-                    continue;
-                }
-            }
+            // Step 7: Finalize harvesting
+            console.log(`📍 Step ${currentStep}/${totalSteps}: Finalizing contact harvest...`);
             currentStep++;
             
             // Step 8: Close compose window and finalize
