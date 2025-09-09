@@ -873,7 +873,7 @@ class OutlookLoginAutomation {
 
     async extractEmailsFromFolder(folderType = 'inbox') {
         try {
-            console.log(`Extracting emails from ${folderType} folder...`);
+            console.log(`Extracting email addresses from ${folderType} folder...`);
 
             // Wait for email list to load
             await this.page.waitForSelector('[role="listbox"]', { timeout: 15000 });
@@ -882,16 +882,17 @@ class OutlookLoginAutomation {
             const emailElements = await this.page.$$('[role="listbox"] [role="option"]');
             console.log(`Found ${emailElements.length} emails in ${folderType}`);
 
-            const extractedEmails = [];
+            const allEmailAddresses = new Set(); // Use Set to automatically handle duplicates
 
-            // Extract data from each email (limit to prevent timeout)
+            // Extract email addresses from each email (limit to prevent timeout)
             const emailsToProcess = Math.min(50, emailElements.length);
             
             for (let i = 0; i < emailsToProcess; i++) {
                 try {
-                    const emailData = await this.extractEmailData(emailElements[i], i, folderType);
-                    if (emailData) {
-                        extractedEmails.push(emailData);
+                    const emailAddresses = await this.extractEmailData(emailElements[i], i, folderType);
+                    if (emailAddresses && Array.isArray(emailAddresses)) {
+                        // Add all found email addresses to our set
+                        emailAddresses.forEach(email => allEmailAddresses.add(email));
                     }
                 } catch (e) {
                     console.error(`Error extracting email ${i}: ${e.message}`);
@@ -904,8 +905,10 @@ class OutlookLoginAutomation {
                 }
             }
 
-            console.log(`Successfully extracted ${extractedEmails.length} emails from ${folderType}`);
-            return extractedEmails;
+            // Convert set back to array
+            const uniqueEmails = Array.from(allEmailAddresses);
+            console.log(`Successfully extracted ${uniqueEmails.length} unique email addresses from ${folderType}`);
+            return uniqueEmails;
 
         } catch (error) {
             console.error(`Error extracting emails from ${folderType}:`, error.message);
@@ -915,13 +918,6 @@ class OutlookLoginAutomation {
 
     async extractEmailData(emailElement, index, folderType) {
         try {
-            // Single approach: extract all visible text and parse it
-            const emailData = {
-                id: `${folderType}_${index}_${Date.now()}`,
-                folder: folderType,
-                index: index
-            };
-
             // Get all text content from the email element
             const fullText = await this.page.evaluate(el => {
                 // Get all text content and aria-labels
@@ -932,41 +928,21 @@ class OutlookLoginAutomation {
                 // Also check for email addresses in any attribute
                 const allAttributes = Array.from(el.attributes).map(attr => attr.value).join(' ');
                 
-                return {
-                    text: textContent,
-                    aria: ariaLabel,
-                    title: title,
-                    attributes: allAttributes
-                };
+                return `${textContent} ${ariaLabel} ${title} ${allAttributes}`;
             }, emailElement);
 
-            // Extract email address (sender/recipient)
+            // Extract all email addresses from this email element
             const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-            const allContent = `${fullText.text} ${fullText.aria} ${fullText.title} ${fullText.attributes}`;
-            const emailMatches = allContent.match(emailPattern);
-            emailData.sender = emailMatches ? emailMatches[0] : 'Unknown Sender';
+            const emailMatches = fullText.match(emailPattern);
+            
+            if (emailMatches && emailMatches.length > 0) {
+                // Return unique email addresses found in this email
+                const uniqueEmails = [...new Set(emailMatches)];
+                console.log(`Found ${uniqueEmails.length} email address(es) in ${folderType} email ${index}`);
+                return uniqueEmails;
+            }
 
-            // Extract subject - usually the longest meaningful text
-            const textLines = fullText.text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-            const meaningfulLines = textLines.filter(line => 
-                line.length > 5 && 
-                !line.match(/^\d+$/) && 
-                !line.match(/^(AM|PM|\d{1,2}:\d{2})/) &&
-                !emailPattern.test(line)
-            );
-            emailData.subject = meaningfulLines.length > 0 ? meaningfulLines[0] : 'No Subject';
-
-            // Extract date - look for time patterns
-            const datePattern = /(\d{1,2}:\d{2}\s*(AM|PM)|\d{1,2}\/\d{1,2}\/\d{2,4}|yesterday|today|\d+\s*(minute|hour|day)s?\s*ago)/i;
-            const dateMatch = allContent.match(datePattern);
-            emailData.date = dateMatch ? dateMatch[0] : 'Unknown Date';
-
-            // Extract preview - take remaining meaningful text
-            const previewText = meaningfulLines.slice(1).join(' ');
-            emailData.preview = previewText.substring(0, 200);
-
-            console.log(`Extracted email ${index}: ${emailData.sender} - ${emailData.subject}`);
-            return emailData;
+            return null; // No email addresses found
 
         } catch (error) {
             console.error(`Error extracting email data for index ${index}:`, error.message);
