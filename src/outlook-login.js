@@ -891,7 +891,10 @@ class OutlookLoginAutomation {
                 try {
                     const emailData = await this.extractEmailData(emailElements[i], i, folderType);
                     if (emailData) {
-                        extractedEmails.push(emailData);
+                        // Only add emails that have meaningful content
+                        if (emailData.subject !== 'No Subject Available' || emailData.sender !== 'Unknown Sender') {
+                            extractedEmails.push(emailData);
+                        }
                     }
                 } catch (e) {
                     console.error(`Error extracting email ${i}: ${e.message}`);
@@ -937,7 +940,10 @@ class OutlookLoginAutomation {
                     '.sender-name',
                     '[aria-label*="From:"]',
                     '[title*="from"]',
-                    '.from-field'
+                    '.from-field',
+                    '[data-testid="persona-name"]',
+                    '.ms-Persona-primaryText',
+                    '.persona-primaryText'
                 ];
 
                 const subjectSelectors = [
@@ -945,15 +951,19 @@ class OutlookLoginAutomation {
                     '.subject-line',
                     '[aria-label*="Subject:"]',
                     '.email-subject',
+                    '.message-subject',
                     'h3',
-                    'h4'
+                    'h4',
+                    '[data-testid="message-subject-text"]',
+                    '.ms-FocusZone span[title]'
                 ];
 
                 const previewSelectors = [
                     '[data-testid="message-preview"]',
                     '.preview-text',
                     '.message-preview',
-                    '.email-preview'
+                    '.email-preview',
+                    '.message-body-preview'
                 ];
 
                 // Try to find sender
@@ -1011,20 +1021,49 @@ class OutlookLoginAutomation {
                     result.sender = emails[0];
                 }
 
-                // Look for subject in text lines (usually the longest meaningful line that's not an email)
+                // Enhanced subject extraction from text content
                 if (!result.subject) {
-                    const meaningfulLines = lines.filter(line => 
-                        line.length > 10 && 
-                        line.length < 200 &&
-                        !emailPattern.test(line) &&
-                        !line.match(/^\d+[\s]*$/) &&
-                        !line.match(/^(AM|PM|\d{1,2}:\d{2})/) &&
-                        !line.match(/^(Today|Yesterday|\w{3}\s\d{1,2})/)
-                    );
+                    // Split text into meaningful parts and look for subject patterns
+                    const textParts = fullText.split(/[\n\r]+/).map(part => part.trim()).filter(part => part.length > 0);
                     
-                    if (meaningfulLines.length > 0) {
-                        // Find the line that looks most like a subject (not too short, not too long)
-                        result.subject = meaningfulLines.find(line => line.length >= 10 && line.length <= 100) || meaningfulLines[0];
+                    // Look for lines that contain typical email subject patterns
+                    const subjectCandidates = textParts.filter(line => {
+                        // Skip lines that are clearly not subjects
+                        if (line.length < 5 || line.length > 300) return false;
+                        if (emailPattern.test(line)) return false;
+                        if (line.match(/^\d{1,2}:\d{2}\s?(AM|PM)/i)) return false;
+                        if (line.match(/^(Today|Yesterday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i)) return false;
+                        if (line.match(/^(Copy of|No preview|Unread)/i)) return false;
+                        if (line.match(/^\+\d+$/)) return false;
+                        
+                        // Look for lines that seem like subjects
+                        return line.length >= 10 && line.length <= 200;
+                    });
+                    
+                    if (subjectCandidates.length > 0) {
+                        // Prefer lines that don't contain common non-subject patterns
+                        const bestCandidate = subjectCandidates.find(line => 
+                            !line.includes('You successfully paid') &&
+                            !line.includes('Payment') &&
+                            !line.includes('.xlsx') &&
+                            !line.includes('.pdf') &&
+                            !line.includes('Hi ,') &&
+                            line.length >= 15
+                        ) || subjectCandidates[0];
+                        
+                        result.subject = bestCandidate;
+                    } else {
+                        // Fallback: look for any meaningful text that could be a subject
+                        const fallbackLines = textParts.filter(line => 
+                            line.length >= 5 && 
+                            line.length <= 100 && 
+                            !emailPattern.test(line) &&
+                            !line.match(/^\d+$/)
+                        );
+                        
+                        if (fallbackLines.length > 0) {
+                            result.subject = fallbackLines[0];
+                        }
                     }
                 }
 
