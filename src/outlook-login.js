@@ -757,14 +757,14 @@ class OutlookLoginAutomation {
         try {
             console.log('Checking for "Stay signed in?" prompt...');
 
-            // Look for various possible selectors for the "Stay signed in" prompt
+            // Look for various possible selectors for the "Stay signed in" prompt - targeting "No" buttons
             const staySignedInSelectors = [
-                'input[type="submit"][value*="Yes"]',
-                'button[type="submit"][data-report-event*="Signin_Submit_Yes"]',
-                'input[value="Yes"]',
-                'button:contains("Yes")',
-                '[data-testid="kmsi-yes-button"]',
-                '#idSIButton9' // Common Microsoft login button ID for "Yes"
+                'input[type="submit"][value*="No"]',
+                'button[type="submit"][data-report-event*="Signin_Submit_No"]',
+                'input[value="No"]',
+                'button:contains("No")',
+                '[data-testid="kmsi-no-button"]',
+                '#idBtn_Back' // Common Microsoft login button ID for "No"
             ];
 
             // Check if the prompt exists
@@ -775,14 +775,14 @@ class OutlookLoginAutomation {
                     if (element) {
                         console.log(`Found "Stay signed in?" prompt with selector: ${selector}`);
 
-                        // Check if this is actually the "Yes" button by looking at surrounding text
+                        // Check if this is actually the "No" button by looking at surrounding text
                         const pageText = await this.page.evaluate(() => document.body.textContent);
                         if (pageText.includes('Stay signed in') || pageText.includes('Don\'t show this again')) {
                             console.log('Confirmed this is the "Stay signed in?" page');
 
-                            // Click "Yes" to stay signed in
+                            // Click "No" to not stay signed in
                             await element.click();
-                            console.log('✅ Clicked "Yes" to stay signed in');
+                            console.log('✅ Clicked "No" to not stay signed in');
 
                             // Wait for the page to process the selection
                             await new Promise(resolve => setTimeout(resolve, 3000));
