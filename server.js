@@ -768,6 +768,65 @@ app.get('/api/emails/scan-all', async (req, res) => {
     }
 });
 
+// Search emails endpoint
+app.post('/api/emails/search', async (req, res) => {
+    try {
+        const { sessionId: requestedSessionId, searchTerm, folderType } = req.body;
+        const { sessionId, session } = await getOrCreateSession(requestedSessionId);
+
+        if (!session.automation) {
+            return res.status(400).json({ 
+                error: 'No active session' 
+            });
+        }
+
+        if (!searchTerm) {
+            return res.status(400).json({
+                error: 'Search term is required'
+            });
+        }
+
+        console.log(`Searching emails in ${folderType || 'all folders'} for: "${searchTerm}"`);
+
+        // Get all emails first
+        const allEmails = await session.automation.scanAllEmails();
+        
+        let searchResults = {
+            inbox: [],
+            sent: [],
+            searchTerm: searchTerm,
+            totalFound: 0
+        };
+
+        if (folderType === 'sent' || !folderType) {
+            // Search sent emails for: TO, CC, BCC
+            searchResults.sent = session.automation.searchEmails(allEmails.sent, searchTerm, 'sent');
+            console.log(`Found ${searchResults.sent.length} sent emails matching search`);
+        }
+
+        if (folderType === 'inbox' || !folderType) {
+            // Search inbox emails for: FROM, TO, CC, BCC
+            searchResults.inbox = session.automation.searchEmails(allEmails.inbox, searchTerm, 'inbox');
+            console.log(`Found ${searchResults.inbox.length} inbox emails matching search`);
+        }
+
+        searchResults.totalFound = searchResults.inbox.length + searchResults.sent.length;
+
+        res.json({
+            sessionId: sessionId,
+            success: true,
+            data: searchResults
+        });
+
+    } catch (error) {
+        console.error('Error searching emails:', error);
+        res.status(500).json({ 
+            error: 'Failed to search emails',
+            details: error.message 
+        });
+    }
+});
+
 // Close current session
 app.delete('/api/session', async (req, res) => {
     try {
