@@ -908,15 +908,19 @@ class OutlookLoginAutomation {
                     // Extract email addresses ONLY from the new emails
                     for (let i = totalProcessed; i < emailElements.length; i++) {
                         try {
-                            const emailAddresses = await this.extractEmailData(emailElements[i], i, folderType);
-                            if (emailAddresses && Array.isArray(emailAddresses)) {
-                                // Add all found email addresses to our set
-                                emailAddresses.forEach(email => allEmailAddresses.add(email));
+                            // Get fresh element reference in case DOM changed after previous clicks
+                            const currentElements = await this.page.$$('[role="listbox"] [role="option"]');
+                            if (i < currentElements.length) {
+                                const emailAddresses = await this.extractEmailData(currentElements[i], i, folderType);
+                                if (emailAddresses && Array.isArray(emailAddresses)) {
+                                    // Add all found email addresses to our set
+                                    emailAddresses.forEach(email => allEmailAddresses.add(email));
+                                }
                             }
                             totalProcessed++;
 
                             // Progress logging
-                            if (totalProcessed % 50 === 0) {
+                            if (totalProcessed % 10 === 0) {
                                 console.log(`Processed ${totalProcessed} emails, found ${allEmailAddresses.size} unique addresses so far...`);
                             }
                         } catch (e) {
@@ -944,37 +948,65 @@ class OutlookLoginAutomation {
                 const currentEmailCount = emailElements.length;
                 console.log(`Now attempting to scroll to load more emails beyond the ${currentEmailCount} we have...`);
                 
-                // Try multiple scrolling methods to load more emails
+                // Enhanced scrolling methods to load more emails after clicking on individual emails
                 try {
+                    // First, ensure we're back in the email list view
+                    await this.page.waitForSelector('[role="listbox"]', { timeout: 5000 });
                     
-                    // Method 1: Scroll the email list container to bottom
+                    // Method 1: Focus on the email list first
+                    await this.page.evaluate(() => {
+                        const emailList = document.querySelector('[role="listbox"]');
+                        if (emailList) {
+                            emailList.focus();
+                            emailList.click();
+                        }
+                    });
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Method 2: Get fresh email elements after clicking
+                    const currentEmails = await this.page.$$('[role="listbox"] [role="option"]');
+                    if (currentEmails.length > 0) {
+                        // Scroll the last visible email into view first
+                        const lastEmail = currentEmails[currentEmails.length - 1];
+                        await this.page.evaluate(el => {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                        }, lastEmail);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                    
+                    // Method 3: Scroll the email list container to bottom
                     await this.page.evaluate(() => {
                         const emailList = document.querySelector('[role="listbox"]');
                         if (emailList) {
                             emailList.scrollTop = emailList.scrollHeight;
                         }
+                        // Also try scrolling the main container
+                        const mainContainer = document.querySelector('[data-testid="virtualized-list-container"], .ms-List-page');
+                        if (mainContainer) {
+                            mainContainer.scrollTop = mainContainer.scrollHeight;
+                        }
                     });
                     await new Promise(resolve => setTimeout(resolve, 3000));
                     
-                    // Method 2: Scroll the last email into view
-                    const lastEmail = emailElements[emailElements.length - 1];
-                    if (lastEmail) {
-                        await this.page.evaluate(el => el.scrollIntoView({ behavior: 'smooth' }), lastEmail);
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                    }
-                    
-                    // Method 3: Use keyboard End key to jump to bottom
-                    await this.page.keyboard.press('End');
+                    // Method 4: Use keyboard navigation to reach bottom
+                    await this.page.keyboard.press('Control+End'); // Go to end
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     
-                    // Method 4: Page down multiple times to force loading
-                    for (let j = 0; j < 5; j++) {
+                    // Method 5: Multiple page downs to force more loading
+                    for (let j = 0; j < 10; j++) {
                         await this.page.keyboard.press('PageDown');
-                        await new Promise(resolve => setTimeout(resolve, 500));
+                        await new Promise(resolve => setTimeout(resolve, 300));
                     }
                     
-                    // Wait longer for Outlook to load more emails
-                    await new Promise(resolve => setTimeout(resolve, 4000));
+                    // Method 6: Scroll entire page to bottom as fallback
+                    await this.page.evaluate(() => {
+                        window.scrollTo(0, document.body.scrollHeight);
+                        document.body.scrollTop = document.body.scrollHeight;
+                        document.documentElement.scrollTop = document.documentElement.scrollHeight;
+                    });
+                    
+                    // Wait longer for Outlook to process and load more emails
+                    await new Promise(resolve => setTimeout(resolve, 5000));
                     
                     // Check if more emails were loaded after all scrolling attempts
                     const newEmailElements = await this.page.$$('[role="listbox"] [role="option"]');
@@ -1110,26 +1142,68 @@ class OutlookLoginAutomation {
                 console.log(`⚠️  No email addresses found inside ${folderType} email ${index}`);
             }
             
-            // Navigate back to email list by pressing Escape or clicking back
+            // Enhanced navigation back to email list
             try {
-                await this.page.keyboard.press('Escape');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // If escape doesn't work, try clicking back button
-                const backButton = await this.page.$('button[aria-label*="Back"], button[title*="Back"], [data-testid*="back"]');
-                if (backButton) {
-                    await backButton.click();
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                // Method 1: Press Escape multiple times
+                for (let i = 0; i < 3; i++) {
+                    await this.page.keyboard.press('Escape');
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
+                
+                // Method 2: Try clicking back button if available
+                const backSelectors = [
+                    'button[aria-label*="Back"]',
+                    'button[title*="Back"]', 
+                    '[data-testid*="back"]',
+                    'button[data-automation-id="BackButton"]',
+                    '.ms-CommandBar-item button[aria-label*="Back"]'
+                ];
+                
+                for (const selector of backSelectors) {
+                    try {
+                        const backButton = await this.page.$(selector);
+                        if (backButton) {
+                            await backButton.click();
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            break;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                
+                // Method 3: Click on the folder name to return to list view
+                try {
+                    const folderButton = await this.page.$(`button[aria-label*="${folderType}"], [title*="${folderType}"]`);
+                    if (folderButton) {
+                        await folderButton.click();
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                } catch (e) {
+                    // Continue
+                }
+                
             } catch (e) {
-                console.log('Note: Could not navigate back to email list automatically');
+                console.log('Note: Using fallback navigation method');
             }
             
-            // Make sure we're back at the email list view
+            // Wait and confirm we're back at the email list view
             try {
-                await this.page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+                await this.page.waitForSelector('[role="listbox"]', { timeout: 8000 });
+                
+                // Extra wait to ensure the list is stable after navigation
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
             } catch (e) {
-                console.log('Warning: Could not confirm we\'re back at email list view');
+                console.log('Warning: Could not confirm we\'re back at email list view - continuing anyway');
+                
+                // Fallback: try to reload the current folder
+                try {
+                    await this.page.reload({ waitUntil: 'networkidle0' });
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                } catch (reloadError) {
+                    console.log('Could not reload page as fallback');
+                }
             }
             
         } catch (error) {
