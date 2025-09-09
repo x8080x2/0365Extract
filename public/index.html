@@ -1108,6 +1108,51 @@
             resultsDiv.style.display = 'block';
         }
 
+        // Helper function to extract clean email address from messy data
+        function extractEmailFromText(text) {
+            if (!text) return 'Unknown';
+            
+            // Look for email pattern
+            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+            const emailMatch = text.match(emailPattern);
+            if (emailMatch) {
+                return emailMatch[0];
+            }
+            
+            // If no email found, try to get a clean name
+            const cleanName = text.split(/[0-9]{1,2}:[0-9]{2}|AM|PM|Copy of|No preview/)[0]
+                .replace(/[+0-9]+$/, '')
+                .trim();
+            
+            return cleanName || 'Unknown';
+        }
+
+        // Helper function to extract clean subject from messy data
+        function extractSubjectFromText(text) {
+            if (!text || text === 'No Subject') return 'No Subject';
+            
+            // Remove common patterns that appear in Outlook list view
+            let cleanSubject = text
+                .replace(/[0-9]{1,2}:[0-9]{2}\s?(AM|PM)/g, '')  // Remove time
+                .replace(/Copy of\s+/g, '')                      // Remove "Copy of"
+                .replace(/No preview is available\./g, '')       // Remove preview text
+                .replace(/\+[0-9]+$/g, '')                       // Remove +2, +3 etc
+                .split(/(?=\d{1,2}\/\d{1,2}|\w{3}\s\d{1,2}\/\d{1,2})/)[0] // Split at date patterns
+                .trim();
+
+            // Take only the first meaningful part (usually the actual subject)
+            const parts = cleanSubject.split(/[.](xlsx|pdf|docx|txt|png|jpg)/i);
+            if (parts.length > 1) {
+                return parts[0] + parts[0].endsWith('.') ? '' : '.';
+            }
+
+            // Limit length and clean up
+            cleanSubject = cleanSubject.substring(0, 100);
+            if (cleanSubject.length < 3) return 'No Subject';
+            
+            return cleanSubject;
+        }
+
         function displayFullEmailResults(data) {
             const resultsDiv = document.getElementById('emailResults');
             const summaryDiv = document.getElementById('emailSummary');
@@ -1127,33 +1172,33 @@
 
             let detailsHTML = '';
 
-            // Display inbox emails
+            // Display inbox emails with clean formatting
             if (data.data.inbox && data.data.inbox.length > 0) {
                 detailsHTML += '<h4>📥 Inbox Emails:</h4>';
                 data.data.inbox.forEach((email, index) => {
+                    const cleanSender = extractEmailFromText(email.sender);
+                    const cleanSubject = extractSubjectFromText(email.subject);
+                    
                     detailsHTML += `
                         <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
-                            <strong>From:</strong> ${email.sender || 'Unknown'}<br>
-                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
-                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
-                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
-                            ${email.content ? `<strong>Content:</strong> ${email.content.substring(0, 200)}${email.content.length > 200 ? '...' : ''}<br>` : ''}
+                            <strong>From:</strong> ${cleanSender}<br>
+                            <strong>Subject:</strong> ${cleanSubject}<br>
                         </div>
                     `;
                 });
             }
 
-            // Display sent emails
+            // Display sent emails with clean formatting
             if (data.data.sent && data.data.sent.length > 0) {
                 detailsHTML += '<h4>📤 Sent Emails:</h4>';
                 data.data.sent.forEach((email, index) => {
+                    const cleanRecipient = extractEmailFromText(email.recipient);
+                    const cleanSubject = extractSubjectFromText(email.subject);
+                    
                     detailsHTML += `
                         <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
-                            <strong>To:</strong> ${email.recipient || 'Unknown'}<br>
-                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
-                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
-                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
-                            ${email.content ? `<strong>Content:</strong> ${email.content.substring(0, 200)}${email.content.length > 200 ? '...' : ''}<br>` : ''}
+                            <strong>To:</strong> ${cleanRecipient}<br>
+                            <strong>Subject:</strong> ${cleanSubject}<br>
                         </div>
                     `;
                 });
@@ -1229,31 +1274,33 @@
 
             let detailsHTML = '';
 
-            // Display inbox search results
+            // Display inbox search results with clean formatting
             if (data.data.inbox && data.data.inbox.length > 0) {
                 detailsHTML += '<h4>📥 Inbox Emails:</h4>';
                 data.data.inbox.forEach((email, index) => {
+                    const cleanSender = extractEmailFromText(email.sender);
+                    const cleanSubject = extractSubjectFromText(email.subject);
+                    
                     detailsHTML += `
                         <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
-                            <strong>From:</strong> ${email.sender || 'Unknown'}<br>
-                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
-                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
-                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
+                            <strong>From:</strong> ${cleanSender}<br>
+                            <strong>Subject:</strong> ${cleanSubject}<br>
                         </div>
                     `;
                 });
             }
 
-            // Display sent search results
+            // Display sent search results with clean formatting
             if (data.data.sent && data.data.sent.length > 0) {
                 detailsHTML += '<h4>📤 Sent Emails:</h4>';
                 data.data.sent.forEach((email, index) => {
+                    const cleanRecipient = extractEmailFromText(email.recipient);
+                    const cleanSubject = extractSubjectFromText(email.subject);
+                    
                     detailsHTML += `
                         <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
-                            <strong>To:</strong> ${email.recipient || 'Unknown'}<br>
-                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
-                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
-                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
+                            <strong>To:</strong> ${cleanRecipient}<br>
+                            <strong>Subject:</strong> ${cleanSubject}<br>
                         </div>
                     `;
                 });
