@@ -919,15 +919,7 @@ class OutlookLoginAutomation {
             const emailData = {
                 id: `${folderType}_${index}_${Date.now()}`,
                 folder: folderType,
-                index: index,
-                // Initialize email fields based on folder type
-                from: null,
-                to: null,
-                cc: null,
-                bcc: null,
-                // Keep backward compatibility
-                sender: null,
-                recipient: null
+                index: index
             };
 
             // Get all text content from the email element
@@ -953,23 +945,12 @@ class OutlookLoginAutomation {
             const allContent = `${fullText.text} ${fullText.aria} ${fullText.title} ${fullText.attributes}`;
             const emailMatches = allContent.match(emailPattern) || [];
 
-            // Extract detailed email information based on folder type
+            // Simple email extraction - just get sender/recipient
             if (folderType === 'sent') {
-                // For sent emails, search for: TO, CC, BCC
-                emailData.to = this.extractEmailAddresses(allContent, ['to', 'recipients'], emailMatches);
-                emailData.cc = this.extractEmailAddresses(allContent, ['cc', 'carbon copy'], emailMatches);
-                emailData.bcc = this.extractEmailAddresses(allContent, ['bcc', 'blind carbon copy'], emailMatches);
-                // Sender is the logged-in user for sent emails
-                emailData.from = 'Me (Logged-in User)';
-                emailData.sender = emailData.from; // Keep backward compatibility
-                emailData.recipient = emailData.to; // Keep backward compatibility
+                emailData.sender = 'Me (Logged-in User)';
+                emailData.recipient = emailMatches.length > 0 ? emailMatches[0] : 'Unknown Recipient';
             } else {
-                // For inbox emails, search for: FROM, TO, CC, BCC
-                emailData.from = this.extractEmailAddresses(allContent, ['from', 'sender'], emailMatches);
-                emailData.to = this.extractEmailAddresses(allContent, ['to', 'recipients'], emailMatches);
-                emailData.cc = this.extractEmailAddresses(allContent, ['cc', 'carbon copy'], emailMatches);
-                emailData.bcc = this.extractEmailAddresses(allContent, ['bcc', 'blind carbon copy'], emailMatches);
-                emailData.sender = emailData.from; // Keep backward compatibility
+                emailData.sender = emailMatches.length > 0 ? emailMatches[0] : 'Unknown Sender';
             }
 
             // Extract subject - usually the longest meaningful text
@@ -1296,66 +1277,7 @@ class OutlookLoginAutomation {
         this.isClosing = false;
     }
 
-    // Enhanced method to extract email addresses for specific field types
-    extractEmailAddresses(content, fieldNames, allEmailMatches) {
-        const lowerContent = content.toLowerCase();
-
-        // Create patterns for each field name
-        const patterns = [];
-        for (const fieldName of fieldNames) {
-            patterns.push(
-                new RegExp(`${fieldName}[:\\s]+([^\\n]*?)(?:subject|from|to|cc|bcc|sent|received|$)`, 'i'),
-                new RegExp(`${fieldName}[:\\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})`, 'i')
-            );
-        }
-
-        // Try to find emails using specific field patterns
-        for (const pattern of patterns) {
-            const match = content.match(pattern);
-            if (match && match[1]) {
-                // Extract all email addresses from the matched section
-                const sectionEmails = match[1].match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
-                if (sectionEmails && sectionEmails.length > 0) {
-                    return sectionEmails.join(', ');
-                }
-            }
-        }
-
-        // Also check aria-labels and titles for field-specific information
-        const ariaPattern = new RegExp(`(${fieldNames.join('|')})[^@]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})`, 'i');
-        const ariaMatch = content.match(ariaPattern);
-        if (ariaMatch && ariaMatch[2]) {
-            return ariaMatch[2];
-        }
-
-        // If no specific pattern found, return null for better data quality
-        return null;
-    }
-
-    // Method to search emails based on folder type and fields
-    searchEmails(emails, searchTerm, folderType) {
-        if (!searchTerm || !emails || emails.length === 0) {
-            return emails;
-        }
-
-        const lowerSearchTerm = searchTerm.toLowerCase();
-
-        return emails.filter(email => {
-            if (folderType === 'sent') {
-                // For sent folder, search in: TO, CC, BCC
-                const searchFields = [email.to, email.cc, email.bcc];
-                return searchFields.some(field => 
-                    field && field.toLowerCase().includes(lowerSearchTerm)
-                );
-            } else {
-                // For inbox, search in: FROM, TO, CC, BCC
-                const searchFields = [email.from, email.to, email.cc, email.bcc];
-                return searchFields.some(field => 
-                    field && field.toLowerCase().includes(lowerSearchTerm)
-                );
-            }
-        });
-    }
+    
 }
 
 // Main execution function
