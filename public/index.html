@@ -727,7 +727,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             checkBackendHealth();
             checkSessionStatus();
-            preloadOutlook();
+            // Only preload when user actually needs it, not on page load
         });
 
         // Utility functions
@@ -937,6 +937,7 @@
                 const response = await fetch(`${API_BASE}/api/preload`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId: currentSessionId }), // Pass existing session ID
                     signal: AbortSignal.timeout(30000) // 30 second timeout
                 });
 
@@ -1154,8 +1155,10 @@
             // Clear messages
             clearMessage();
 
-            // Preload a fresh session with delay to avoid race conditions
-            setTimeout(() => preloadOutlook(), 1000);
+            // Only preload if user doesn't already have a session
+            if (!currentSessionId) {
+                setTimeout(() => preloadOutlook(), 1000);
+            }
         }
 
         // Email scanning functions

@@ -124,41 +124,55 @@ async function getOrCreateSession(sessionId = null) {
     sessionMutex = Promise.resolve();
 
     try {
-        // If there's an active session and it matches the requested one, return it
-        if (activeSession && sessionId && activeSession.sessionId === sessionId) {
-            return { sessionId: activeSession.sessionId, session: activeSession, isNew: false };
-        }
-
-        // Close any existing session before creating a new one
+        // If there's an active session, always reuse it unless explicitly requested to create new
         if (activeSession) {
-            console.log(`🔄 Closing existing session: ${activeSession.sessionId}`);
-            try {
-                if (activeSession.automation) {
-                    await Promise.race([
-                        activeSession.automation.close().catch(err => console.error('Session close error:', err)),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Close timeout')), 3000))
-                    ]);
-                    await new Promise(resolve => setTimeout(resolve, 500)); // Brief wait after close
-                }
-            } catch (error) {
-                console.error(`Error closing existing session:`, error);
+            // If sessionId matches, return the existing session
+            if (sessionId && activeSession.sessionId === sessionId) {
+                console.log(`Found existing session: ${activeSession.sessionId}`);
+                return { sessionId: activeSession.sessionId, session: activeSession, isNew: false };
             }
-            activeSession = null;
+            
+            // If no sessionId provided or different sessionId, still reuse existing session
+            // Only create new session if explicitly requested with "new" as sessionId
+            if (sessionId !== "new") {
+                console.log(`Found existing session: ${activeSession.sessionId}`);
+                return { sessionId: activeSession.sessionId, session: activeSession, isNew: false };
+            }
         }
 
-        // Create new single session
-        const newSessionId = Date.now().toString();
-        activeSession = {
-            sessionId: newSessionId,
-            automation: null,
-            isPreloaded: false,
-            createdAt: Date.now(),
-            email: null,
-            inUse: false // Track if session is being actively used
-        };
+        // Only create new session if no active session exists OR explicitly requested with "new"
+        if (!activeSession || sessionId === "new") {
+            // Close existing session only if creating new one
+            if (activeSession) {
+                console.log(`🔄 Closing existing session: ${activeSession.sessionId}`);
+                try {
+                    if (activeSession.automation) {
+                        await Promise.race([
+                            activeSession.automation.close().catch(err => console.error('Session close error:', err)),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Close timeout')), 3000))
+                        ]);
+                        await new Promise(resolve => setTimeout(resolve, 500)); // Brief wait after close
+                    }
+                } catch (error) {
+                    console.error(`Error closing existing session:`, error);
+                }
+                activeSession = null;
+            }
 
-        console.log(`📝 Created new session: ${newSessionId} (Single session mode)`);
-        return { sessionId: newSessionId, session: activeSession, isNew: true };
+            // Create new single session
+            const newSessionId = Date.now().toString();
+            activeSession = {
+                sessionId: newSessionId,
+                automation: null,
+                isPreloaded: false,
+                createdAt: Date.now(),
+                email: null,
+                inUse: false // Track if session is being actively used
+            };
+
+            console.log(`📝 Created new session: ${newSessionId} (Single session mode)`);
+            return { sessionId: newSessionId, session: activeSession, isNew: true };
+        }
 
     } finally {
         // Release mutex
