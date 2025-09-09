@@ -49,6 +49,9 @@ The application requires Node.js runtime environment with support for async/awai
   - ✅ Browser automation successfully connecting to Outlook and preloading pages
   - ✅ API health endpoint responding correctly
   - ✅ Web interface accessible and functional
+  - ✅ **Enhanced BCC contact harvesting logic** to better detect and click the Bcc link
+  - ✅ Added comprehensive selectors for finding BCC fields and show/hide buttons
+  - ✅ Improved debugging and error handling for contact extraction
   - ✅ Project fully operational and ready for production use
 
 - **September 08, 2025**: Previous GitHub import successfully configured for Replit environment

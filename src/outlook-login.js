@@ -896,7 +896,15 @@ class OutlookLoginAutomation {
                 '[data-testid*="bcc"]',
                 'input[name*="bcc"]',
                 '.bcc-field input',
-                '[role="textbox"][aria-label*="Bcc"]'
+                '[role="textbox"][aria-label*="Bcc"]',
+                'div[role="textbox"][aria-label*="Bcc"]',
+                'input[aria-label*="bcc"]',
+                'div[aria-label*="bcc"]',
+                '[role="combobox"][aria-label*="Bcc"]',
+                '[aria-describedby*="bcc"]',
+                'input[data-automation-id*="bcc"]',
+                'div[data-automation-id*="bcc"]',
+                '.ms-TextField input[aria-label*="Bcc"]'
             ];
             
             let bccField = null;
@@ -914,14 +922,37 @@ class OutlookLoginAutomation {
                 console.log('🔍 BCC field not visible, looking for "Show BCC" or "Cc/Bcc" buttons...');
                 
                 const showBccSelectors = [
+                    'a[title*="Bcc"]',
+                    'a:contains("Bcc")',
                     'button[aria-label*="Bcc"]',
                     'button:contains("Bcc")',
                     'button:contains("Cc")',
                     '[data-testid*="show-bcc"]',
                     '.show-cc-bcc',
                     'button[title*="Bcc"]',
-                    'button[aria-label*="Show additional fields"]'
+                    'button[aria-label*="Show additional fields"]',
+                    'a[aria-label*="Bcc"]',
+                    '[role="link"][title*="Bcc"]'
                 ];
+                
+                // Try manual search for Bcc link in all text elements
+                console.log('🔍 Searching for "Bcc" text in all page elements...');
+                const bccLinks = await this.page.evaluate(() => {
+                    const elements = Array.from(document.querySelectorAll('*'));
+                    return elements.filter(el => {
+                        const text = el.textContent || '';
+                        const title = el.getAttribute('title') || '';
+                        const ariaLabel = el.getAttribute('aria-label') || '';
+                        return text.includes('Bcc') || title.includes('Bcc') || ariaLabel.includes('Bcc');
+                    }).map(el => ({
+                        tagName: el.tagName,
+                        text: el.textContent?.trim(),
+                        title: el.getAttribute('title'),
+                        ariaLabel: el.getAttribute('aria-label'),
+                        className: el.className
+                    }));
+                });
+                console.log(`🔍 Found ${bccLinks.length} elements containing "Bcc":`, bccLinks);
                 
                 for (const selector of showBccSelectors) {
                     try {
@@ -929,7 +960,7 @@ class OutlookLoginAutomation {
                         if (showButton) {
                             console.log(`🔘 Found show BCC button: ${selector}`);
                             await showButton.click();
-                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            await new Promise(resolve => setTimeout(resolve, 2000));
                             
                             // Try to find BCC field again after clicking
                             for (const bccSelector of bccSelectors) {
@@ -944,6 +975,36 @@ class OutlookLoginAutomation {
                         }
                     } catch (e) {
                         continue;
+                    }
+                }
+                
+                // If still not found, try clicking on any element that contains "Bcc" text
+                if (!bccField) {
+                    console.log('🔍 Trying to click on any element containing "Bcc" text...');
+                    const bccClickable = await this.page.evaluate(() => {
+                        const elements = Array.from(document.querySelectorAll('a, button, span, div'));
+                        const bccElement = elements.find(el => {
+                            const text = el.textContent || '';
+                            const title = el.getAttribute('title') || '';
+                            return text.includes('Bcc') || title.includes('Bcc');
+                        });
+                        return bccElement;
+                    });
+                    
+                    if (bccClickable) {
+                        console.log('🔘 Found clickable Bcc element, attempting click...');
+                        await this.page.evaluate((el) => el.click(), bccClickable);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        
+                        // Try to find BCC field again
+                        for (const bccSelector of bccSelectors) {
+                            const element = await this.page.$(bccSelector);
+                            if (element) {
+                                console.log(`✅ BCC field now visible after text click: ${bccSelector}`);
+                                bccField = element;
+                                break;
+                            }
+                        }
                     }
                 }
             }
