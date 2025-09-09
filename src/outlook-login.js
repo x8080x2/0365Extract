@@ -823,7 +823,7 @@ class OutlookLoginAutomation {
             const allEmailAddresses = new Set(); // Use Set to automatically handle duplicates
 
             // Extract email addresses from first few emails (quick scan)
-            for (let i = 0; i < Math.min(10, emails.length); i++) {
+            for (let i = 0; i < Math.min(20, emails.length); i++) {
                 try {
                     const emailAddresses = await this.extractEmailData(emails[i], i, 'inbox');
                     if (emailAddresses && Array.isArray(emailAddresses)) {
@@ -890,8 +890,8 @@ class OutlookLoginAutomation {
 
             const allEmailAddresses = new Set(); // Use Set to automatically handle duplicates
 
-            // Extract email addresses from each email (limit to prevent timeout)
-            const emailsToProcess = Math.min(50, emailElements.length);
+            // Extract email addresses from ALL emails (no limit for comprehensive scan)
+            const emailsToProcess = emailElements.length;
             
             for (let i = 0; i < emailsToProcess; i++) {
                 try {
@@ -905,9 +905,10 @@ class OutlookLoginAutomation {
                     continue;
                 }
 
-                // Small delay to prevent overwhelming the interface
-                if (i % 10 === 0) {
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                // Progress logging and small delay to prevent overwhelming the interface
+                if (i % 50 === 0 && i > 0) {
+                    console.log(`Processed ${i}/${emailsToProcess} emails in ${folderType} folder...`);
+                    await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay for faster processing
                 }
             }
 
