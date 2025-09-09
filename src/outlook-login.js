@@ -957,6 +957,28 @@ class OutlookLoginAutomation {
             console.log(`📍 Step ${currentStep}/${totalSteps}: Clicking on BCC field to trigger contact suggestions...`);
             await bccField.click();
             await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Click on empty part of BCC field to trigger suggestions
+            console.log('🔍 Clicking on empty BCC field area to trigger contact suggestions...');
+            await bccField.click();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Try clicking at different positions within the BCC field
+            const bccBox = await bccField.boundingBox();
+            if (bccBox) {
+                // Click at the beginning of the field
+                await this.page.mouse.click(bccBox.x + 10, bccBox.y + bccBox.height / 2);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Click at the end of the field
+                await this.page.mouse.click(bccBox.x + bccBox.width - 10, bccBox.y + bccBox.height / 2);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Click in the middle
+                await this.page.mouse.click(bccBox.x + bccBox.width / 2, bccBox.y + bccBox.height / 2);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
             currentStep++;
             
             // Step 6: Start harvesting suggested contacts
