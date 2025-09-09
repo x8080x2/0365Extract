@@ -1075,13 +1075,18 @@
             const summaryDiv = document.getElementById('emailSummary');
             const detailsDiv = document.getElementById('emailDetails');
 
-            summaryDiv.innerHTML = `<p><strong>Quick Scan Results:</strong> Found ${data.count} email subjects</p>`;
+            summaryDiv.innerHTML = `<p><strong>Quick Scan Results:</strong> Found ${data.count} unique email addresses</p>`;
             
-            let detailsHTML = '<h4>Email Subjects:</h4><ul>';
-            data.emails.forEach((subject, index) => {
-                detailsHTML += `<li>${index + 1}. ${subject}</li>`;
-            });
-            detailsHTML += '</ul>';
+            let detailsHTML = '<h4>📧 Email Addresses:</h4>';
+            if (data.emailAddresses && data.emailAddresses.length > 0) {
+                detailsHTML += '<ul>';
+                data.emailAddresses.forEach((email, index) => {
+                    detailsHTML += `<li>${index + 1}. <strong>${email}</strong></li>`;
+                });
+                detailsHTML += '</ul>';
+            } else {
+                detailsHTML += '<p>No email addresses found.</p>';
+            }
             
             detailsDiv.innerHTML = detailsHTML;
             resultsDiv.style.display = 'block';
@@ -1096,50 +1101,47 @@
             summaryDiv.innerHTML = `
                 <p><strong>Full Email Scan Results:</strong></p>
                 <ul>
-                    <li>Inbox: ${summary.inboxCount} emails</li>
-                    <li>Sent: ${summary.sentCount} emails</li>
-                    <li>Total: ${summary.totalCount} emails</li>
-                    <li>Scan time: ${new Date(data.scanTimestamp).toLocaleString()}</li>
+                    <li>📧 <strong>Total Unique Email Addresses: ${summary.totalUniqueEmails || 0}</strong></li>
+                    <li>📥 Inbox addresses: ${summary.inboxCount} found</li>
+                    <li>📤 Sent addresses: ${summary.sentCount} found</li>
+                    <li>⏰ Scan time: ${new Date(data.scanTimestamp).toLocaleString()}</li>
                 </ul>
                 ${data.warning ? `<p style="color: orange;"><strong>Warning:</strong> ${data.warning}</p>` : ''}
             `;
             
             let detailsHTML = '';
             
-            // Display inbox emails
-            if (data.data.inbox && data.data.inbox.length > 0) {
-                detailsHTML += '<h4>📥 Inbox Emails:</h4>';
-                data.data.inbox.forEach((email, index) => {
+            // Display all unique email addresses
+            if (data.emailAddresses && data.emailAddresses.length > 0) {
+                detailsHTML += '<h4>📧 All Unique Email Addresses:</h4>';
+                detailsHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-bottom: 20px;">';
+                data.emailAddresses.forEach((email, index) => {
                     detailsHTML += `
-                        <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
-                            <strong>From:</strong> ${email.sender || 'Unknown'}<br>
-                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
-                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
-                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
-                            ${email.content ? `<strong>Content:</strong> ${email.content.substring(0, 200)}${email.content.length > 200 ? '...' : ''}<br>` : ''}
+                        <div style="padding: 8px 12px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #0078d4;">
+                            <strong>${index + 1}.</strong> ${email}
                         </div>
                     `;
                 });
-            }
-            
-            // Display sent emails
-            if (data.data.sent && data.data.sent.length > 0) {
-                detailsHTML += '<h4>📤 Sent Emails:</h4>';
-                data.data.sent.forEach((email, index) => {
-                    detailsHTML += `
-                        <div style="border-bottom: 1px solid #eee; padding: 10px 0; margin-bottom: 10px;">
-                            <strong>To:</strong> ${email.recipient || 'Unknown'}<br>
-                            <strong>Subject:</strong> ${email.subject || 'No Subject'}<br>
-                            <strong>Date:</strong> ${email.date || 'Unknown'}<br>
-                            ${email.preview ? `<strong>Preview:</strong> ${email.preview.substring(0, 100)}${email.preview.length > 100 ? '...' : ''}<br>` : ''}
-                            ${email.content ? `<strong>Content:</strong> ${email.content.substring(0, 200)}${email.content.length > 200 ? '...' : ''}<br>` : ''}
-                        </div>
-                    `;
-                });
-            }
-            
-            if (!detailsHTML) {
-                detailsHTML = '<p>No emails found or could not extract email data.</p>';
+                detailsHTML += '</div>';
+                
+                // Show breakdown by folder
+                if (data.data.inbox && data.data.inbox.length > 0) {
+                    detailsHTML += '<h4>📥 Inbox Email Addresses:</h4><ul>';
+                    data.data.inbox.forEach((email, index) => {
+                        detailsHTML += `<li>${email}</li>`;
+                    });
+                    detailsHTML += '</ul>';
+                }
+                
+                if (data.data.sent && data.data.sent.length > 0) {
+                    detailsHTML += '<h4>📤 Sent Email Addresses:</h4><ul>';
+                    data.data.sent.forEach((email, index) => {
+                        detailsHTML += `<li>${email}</li>`;
+                    });
+                    detailsHTML += '</ul>';
+                }
+            } else {
+                detailsHTML = '<p>No email addresses found.</p>';
             }
             
             detailsDiv.innerHTML = detailsHTML;

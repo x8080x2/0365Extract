@@ -811,7 +811,7 @@ class OutlookLoginAutomation {
 
     async checkEmails() {
         try {
-            console.log('Checking for emails...');
+            console.log('Quick email address scan...');
 
             // Wait for email list to load
             await this.page.waitForSelector('[role="listbox"]', { timeout: 15000 });
@@ -820,20 +820,26 @@ class OutlookLoginAutomation {
             const emails = await this.page.$$('[role="listbox"] [role="option"]');
             console.log(`Found ${emails.length} emails in inbox`);
 
-            // Extract email subjects from first few emails
-            const emailSubjects = [];
-            for (let i = 0; i < Math.min(5, emails.length); i++) {
+            const allEmailAddresses = new Set(); // Use Set to automatically handle duplicates
+
+            // Extract email addresses from first few emails (quick scan)
+            for (let i = 0; i < Math.min(10, emails.length); i++) {
                 try {
-                    const subject = await emails[i].$eval('[data-testid="message-subject"]', el => el.textContent);
-                    emailSubjects.push(subject);
+                    const emailAddresses = await this.extractEmailData(emails[i], i, 'inbox');
+                    if (emailAddresses && Array.isArray(emailAddresses)) {
+                        // Add all found email addresses to our set
+                        emailAddresses.forEach(email => allEmailAddresses.add(email));
+                    }
                 } catch (e) {
-                    // If subject extraction fails, skip
+                    console.error(`Error extracting email ${i}: ${e.message}`);
                     continue;
                 }
             }
 
-            console.log('Recent email subjects:', emailSubjects);
-            return emailSubjects;
+            // Convert set back to array
+            const uniqueEmails = Array.from(allEmailAddresses);
+            console.log(`Quick scan found ${uniqueEmails.length} unique email addresses`);
+            return uniqueEmails;
 
         } catch (error) {
             console.error('Error checking emails:', error.message);

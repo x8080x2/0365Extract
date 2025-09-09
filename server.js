@@ -710,12 +710,12 @@ app.get('/api/emails', async (req, res) => {
             });
         }
 
-        const emails = await session.automation.checkEmails();
+        const emailAddresses = await session.automation.checkEmails();
 
         res.json({
             sessionId: sessionId,
-            emails,
-            count: emails.length
+            emailAddresses: emailAddresses,
+            count: emailAddresses.length
         });
 
     } catch (error) {
@@ -742,12 +742,24 @@ app.get('/api/emails/scan-all', async (req, res) => {
         console.log('Starting comprehensive email scan...');
         const allEmails = await session.automation.scanAllEmails();
 
+        // Combine all unique email addresses from both folders
+        const allUniqueEmails = new Set([
+            ...(allEmails.inbox || []),
+            ...(allEmails.sent || [])
+        ]);
+        const emailAddresses = Array.from(allUniqueEmails);
+
         const response = {
             sessionId: sessionId,
-            data: allEmails,
+            emailAddresses: emailAddresses, // Array of unique email addresses
+            data: {
+                inbox: allEmails.inbox || [],
+                sent: allEmails.sent || []
+            },
             summary: {
                 inboxCount: allEmails.inbox?.length || 0,
                 sentCount: allEmails.sent?.length || 0,
+                totalUniqueEmails: emailAddresses.length,
                 totalCount: (allEmails.inbox?.length || 0) + (allEmails.sent?.length || 0)
             },
             scanTimestamp: new Date().toISOString()
