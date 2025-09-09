@@ -1074,6 +1074,9 @@ class OutlookLoginAutomation {
             // Wait for email content to load
             await this.page.waitForSelector('[role="main"], .email-content, [data-testid="email-body"]', { timeout: 8000 });
             
+            // Expand conversation thread to get all emails in the conversation
+            await this.expandConversationThread();
+            
             // Extract email addresses from the opened email
             const emailAddresses = await this.page.evaluate(() => {
                 const addresses = new Set();
@@ -1233,6 +1236,100 @@ class OutlookLoginAutomation {
         }
         
         return foundEmails.length > 0 ? foundEmails : null;
+    }
+
+    // New method to expand conversation threads to get all emails in a conversation
+    async expandConversationThread() {
+        try {
+            console.log('🔄 Expanding conversation thread to access all emails...');
+            
+            // Look for conversation expansion indicators and click them
+            const expansionSelectors = [
+                '[aria-label*="Show"]',
+                '[aria-label*="messages"]', 
+                '[aria-label*="items"]',
+                '[data-testid*="expand"]',
+                '[title*="Show"]',
+                '.conversation-expansion',
+                '.show-more',
+                '.expand-thread',
+                'button[aria-expanded="false"]',
+                '[role="button"][aria-label*="Show more"]'
+            ];
+            
+            let expandedSomething = false;
+            
+            for (const selector of expansionSelectors) {
+                try {
+                    const expansionElements = await this.page.$$(selector);
+                    for (const element of expansionElements) {
+                        const elementText = await this.page.evaluate(el => {
+                            return (el.textContent || el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
+                        }, element);
+                        
+                        // Look for expansion-related text patterns
+                        if (elementText.includes('show') || 
+                            elementText.includes('more') || 
+                            elementText.includes('expand') ||
+                            elementText.includes('messages') ||
+                            elementText.includes('items') ||
+                            /\d+\s*(more|additional|items|messages)/.test(elementText)) {
+                            
+                            console.log(`🔍 Found expansion button: "${elementText}"`);
+                            await element.click();
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            expandedSomething = true;
+                        }
+                    }
+                } catch (e) {
+                    // Continue with next selector
+                    continue;
+                }
+            }
+            
+            // Also try to expand any collapsed conversation items by looking for specific patterns
+            try {
+                const collapsedItems = await this.page.$$('[aria-expanded="false"], .collapsed, .minimized');
+                for (const item of collapsedItems) {
+                    try {
+                        await item.click();
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        expandedSomething = true;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            } catch (e) {
+                // Ignore errors in expansion attempts
+            }
+            
+            // Look for conversation thread navigation and try to show all messages
+            try {
+                const threadNavigation = await this.page.$$('[aria-label*="conversation"], [data-testid*="thread"], .conversation-nav');
+                for (const nav of threadNavigation) {
+                    try {
+                        await nav.click();
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            } catch (e) {
+                // Ignore navigation errors
+            }
+            
+            if (expandedSomething) {
+                console.log('✅ Successfully expanded conversation thread');
+                // Wait for content to load after expansion
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            } else {
+                console.log('ℹ️  No conversation expansion needed or available');
+            }
+            
+        } catch (error) {
+            console.log(`⚠️  Error expanding conversation: ${error.message}`);
+            // Don't throw - continue with extraction even if expansion fails
+        }
     }
 
     async extractFullEmailContent(emailData) {
