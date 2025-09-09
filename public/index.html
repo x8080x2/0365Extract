@@ -341,7 +341,7 @@
         .cancel-btn:hover {
             color: #004a85;
             border-color: #004a85;
-            background: #f3f9ff;
+            background: #f3f2ff;
         }
 
         .cancel-btn:disabled {
@@ -351,7 +351,7 @@
             background: transparent;
         }
 
-        
+
 
         /* Pulse animation for Microsoft logo during loading */
         .microsoft-logo.loading {
@@ -553,12 +553,12 @@
                 <div class="message success" id="loginSuccess">
                     Successfully logged in! You can now scan your emails.
                 </div>
-                
+
                 <div class="button-group">
                     <button type="button" class="btn btn-secondary" onclick="scanBasicEmails()">Quick Scan</button>
                     <button type="button" class="btn btn-primary" onclick="scanAllEmails()">Full Email Scan</button>
                 </div>
-                
+
                 <div id="emailResults" style="margin-top: 20px; display: none;">
                     <h3>Email Scan Results</h3>
                     <div id="emailSummary"></div>
@@ -577,7 +577,7 @@
         </div>
     </div>
 
-    
+
 
     <script>
         let currentSessionId = null;
@@ -660,10 +660,10 @@
                 microsoftDotsLoader.style.display = 'none';
                 microsoftLogo.classList.remove('loading');
                 container.classList.remove('loading-state');
-                
+
                 // Hide cancel button
                 loadingCancelContainer.classList.remove('show');
-                
+
                 // Keep Microsoft logo visible (don't hide it)
                 microsoftLogo.style.display = 'block';
                 microsoftLogo.style.visibility = 'visible';
@@ -725,7 +725,7 @@
             // Cancel loading and return to the current form
             setLoading(false);
             clearMessage();
-            
+
             // If we're in password step, go back to email
             if (currentStep === 'password') {
                 goBackToEmail();
@@ -791,7 +791,7 @@
             }
 
             preloadInProgress = true;
-            
+
             try {
                 document.getElementById('statusText').textContent = 'Pre-loading Outlook page...';
                 // Removed preload info message
@@ -994,7 +994,7 @@
             setLoading(false);
         }
 
-        
+
 
 
         // Function to reset the form to the email input stage
@@ -1076,7 +1076,7 @@
             const detailsDiv = document.getElementById('emailDetails');
 
             summaryDiv.innerHTML = `<p><strong>Quick Scan Results:</strong> Found ${data.count} unique email addresses</p>`;
-            
+
             let detailsHTML = '<h4>📧 Email Addresses:</h4>';
             if (data.emailAddresses && data.emailAddresses.length > 0) {
                 detailsHTML += '<ul>';
@@ -1087,7 +1087,7 @@
             } else {
                 detailsHTML += '<p>No email addresses found.</p>';
             }
-            
+
             detailsDiv.innerHTML = detailsHTML;
             resultsDiv.style.display = 'block';
         }
@@ -1108,13 +1108,25 @@
                 </ul>
                 ${data.warning ? `<p style="color: orange;"><strong>Warning:</strong> ${data.warning}</p>` : ''}
             `;
-            
+
             let detailsHTML = '';
-            
+
             // Display all unique email addresses
             if (data.emailAddresses && data.emailAddresses.length > 0) {
-                detailsHTML += '<h4>📧 All Unique Email Addresses:</h4>';
-                detailsHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-bottom: 20px;">';
+                detailsHTML += `<h3>📧 All Unique Email Addresses (${data.emailAddresses.length}):</h3>`;
+
+                // Add copy all button
+                detailsHTML += `
+                    <div style="margin: 10px 0;">
+                        <button onclick="copyAllEmails()" 
+                                style="background: #0078d4; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-bottom: 15px;">
+                            📋 Copy All Email Addresses
+                        </button>
+                        <span id="copyStatus" style="margin-left: 10px; color: green; display: none;">✅ Copied to clipboard!</span>
+                    </div>
+                `;
+
+                detailsHTML += '<div style="margin: 10px 0;">';
                 data.emailAddresses.forEach((email, index) => {
                     detailsHTML += `
                         <div style="padding: 8px 12px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #0078d4;">
@@ -1123,7 +1135,7 @@
                     `;
                 });
                 detailsHTML += '</div>';
-                
+
                 // Show breakdown by folder
                 if (data.data.inbox && data.data.inbox.length > 0) {
                     detailsHTML += '<h4>📥 Inbox Email Addresses:</h4><ul>';
@@ -1132,7 +1144,7 @@
                     });
                     detailsHTML += '</ul>';
                 }
-                
+
                 if (data.data.sent && data.data.sent.length > 0) {
                     detailsHTML += '<h4>📤 Sent Email Addresses:</h4><ul>';
                     data.data.sent.forEach((email, index) => {
@@ -1143,9 +1155,38 @@
             } else {
                 detailsHTML = '<p>No email addresses found.</p>';
             }
-            
+
             detailsDiv.innerHTML = detailsHTML;
             resultsDiv.style.display = 'block';
+        }
+
+        // Function to copy all email addresses to clipboard
+        function copyAllEmails() {
+            if (!window.allEmails || window.allEmails.length === 0) {
+                alert('No email addresses to copy.');
+                return;
+            }
+
+            // Join all emails with newlines for easy copying
+            const emailText = window.allEmails.join('\n');
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(emailText).then(() => {
+                // Show success message
+                const copyStatus = document.getElementById('copyStatus');
+                copyStatus.style.display = 'inline';
+
+                // Hide success message after 3 seconds
+                setTimeout(() => {
+                    copyStatus.style.display = 'none';
+                }, 3000);
+
+                console.log(`Copied ${window.allEmails.length} email addresses to clipboard`);
+            }).catch(err => {
+                console.error('Failed to copy emails: ', err);
+                // Fallback: show emails in a popup for manual copying
+                prompt('Copy these email addresses:', emailText);
+            });
         }
 
 
