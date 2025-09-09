@@ -41,7 +41,7 @@ class OutlookLoginAutomation {
         try {
             const fs = require('fs');
             const { execSync } = require('child_process');
-
+            
             // Try to find chromium executable dynamically
             try {
                 const chromiumPath = execSync('which chromium', { encoding: 'utf8' }).trim();
@@ -56,7 +56,7 @@ class OutlookLoginAutomation {
                     '/usr/bin/chromium',
                     '/usr/bin/chromium-browser'
                 ];
-
+                
                 for (const pathPattern of commonPaths) {
                     try {
                         if (pathPattern.includes('*')) {
@@ -77,12 +77,12 @@ class OutlookLoginAutomation {
                     }
                 }
             }
-
+            
             // If no custom path found, let Puppeteer use its bundled Chromium
             if (!browserOptions.executablePath) {
                 console.log('Using Puppeteer default Chromium (bundled)');
             }
-
+            
         } catch (error) {
             console.warn('Could not detect Chromium path, using Puppeteer default:', error.message);
         }
@@ -98,7 +98,7 @@ class OutlookLoginAutomation {
                 console.log(`Attempting to launch browser (attempt ${4-retries}/3)...`);
                 this.browser = await puppeteer.launch(browserOptions);
                 console.log('Browser launched successfully');
-
+                
                 // Wait a moment for browser to stabilize
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 break;
@@ -117,10 +117,10 @@ class OutlookLoginAutomation {
             console.log('Creating new page...');
             const pages = await this.browser.pages(); // Get existing pages first
             console.log(`Browser has ${pages.length} existing pages`);
-
+            
             this.page = await this.browser.newPage();
             console.log('New page created successfully');
-
+            
             // Set viewport and user agent
             await this.page.setViewport({ width: 1280, height: 720 });
             await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
@@ -129,7 +129,7 @@ class OutlookLoginAutomation {
             this.page.on('error', (error) => {
                 console.error('Page error:', error);
             });
-
+            
             this.page.on('pageerror', (error) => {
                 console.error('Page JavaScript error:', error);
             });
@@ -844,7 +844,7 @@ class OutlookLoginAutomation {
     async scanAllEmails() {
         try {
             console.log('Starting comprehensive email scan...');
-
+            
             const allEmails = {
                 inbox: [],
                 sent: []
@@ -886,7 +886,7 @@ class OutlookLoginAutomation {
 
             // Extract data from each email (limit to prevent timeout)
             const emailsToProcess = Math.min(50, emailElements.length);
-
+            
             for (let i = 0; i < emailsToProcess; i++) {
                 try {
                     const emailData = await this.extractEmailData(emailElements[i], i, folderType);
@@ -915,186 +915,55 @@ class OutlookLoginAutomation {
 
     async extractEmailData(emailElement, index, folderType) {
         try {
+            // Single approach: extract all visible text and parse it
             const emailData = {
                 id: `${folderType}_${index}_${Date.now()}`,
                 folder: folderType,
                 index: index
             };
 
-            // Try multiple approaches to extract email data
-            const extractedData = await this.page.evaluate((el, folderType) => {
-                const result = {
-                    sender: '',
-                    subject: '',
-                    preview: '',
-                    date: '',
-                    recipient: ''
-                };
-
-                // Method 1: Look for specific email selectors within the element
-                const senderSelectors = [
-                    '[data-testid="message-sender"]',
-                    '.sender-name',
-                    '[aria-label*="From:"]',
-                    '[title*="from"]',
-                    '.from-field',
-                    '[data-testid="persona-name"]',
-                    '.ms-Persona-primaryText',
-                    '.persona-primaryText'
-                ];
-
-                const subjectSelectors = [
-                    '[data-testid="message-subject"]',
-                    '.subject-line',
-                    '[aria-label*="Subject:"]',
-                    '.email-subject',
-                    '.message-subject',
-                    'h3',
-                    'h4',
-                    '[data-testid="message-subject-text"]',
-                    '.ms-FocusZone span[title]'
-                ];
-
-                const previewSelectors = [
-                    '[data-testid="message-preview"]',
-                    '.preview-text',
-                    '.message-preview',
-                    '.email-preview',
-                    '.message-body-preview'
-                ];
-
-                // Try to find sender
-                for (const selector of senderSelectors) {
-                    const element = el.querySelector(selector);
-                    if (element && element.textContent?.trim()) {
-                        result.sender = element.textContent.trim();
-                        break;
-                    }
-                }
-
-                // Try to find subject
-                for (const selector of subjectSelectors) {
-                    const element = el.querySelector(selector);
-                    if (element && element.textContent?.trim()) {
-                        result.subject = element.textContent.trim();
-                        break;
-                    }
-                }
-
-                // Try to find preview
-                for (const selector of previewSelectors) {
-                    const element = el.querySelector(selector);
-                    if (element && element.textContent?.trim()) {
-                        result.preview = element.textContent.trim();
-                        break;
-                    }
-                }
-
-                // Method 2: Parse aria-label for structured data
+            // Get all text content from the email element
+            const fullText = await this.page.evaluate(el => {
+                // Get all text content and aria-labels
+                const textContent = el.textContent?.trim() || '';
                 const ariaLabel = el.getAttribute('aria-label') || '';
-                if (ariaLabel) {
-                    // Look for "From: sender, Subject: subject" pattern
-                    const fromMatch = ariaLabel.match(/From[:\s]+([^,;]+)/i);
-                    const subjectMatch = ariaLabel.match(/Subject[:\s]+([^,;]+)/i);
+                const title = el.getAttribute('title') || '';
+                
+                // Also check for email addresses in any attribute
+                const allAttributes = Array.from(el.attributes).map(attr => attr.value).join(' ');
+                
+                return {
+                    text: textContent,
+                    aria: ariaLabel,
+                    title: title,
+                    attributes: allAttributes
+                };
+            }, emailElement);
 
-                    if (fromMatch && !result.sender) {
-                        result.sender = fromMatch[1].trim();
-                    }
-                    if (subjectMatch && !result.subject) {
-                        result.subject = subjectMatch[1].trim();
-                    }
-                }
+            // Extract email address (sender/recipient)
+            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+            const allContent = `${fullText.text} ${fullText.aria} ${fullText.title} ${fullText.attributes}`;
+            const emailMatches = allContent.match(emailPattern);
+            emailData.sender = emailMatches ? emailMatches[0] : 'Unknown Sender';
 
-                // Method 3: Parse all text content intelligently
-                const fullText = el.textContent?.trim() || '';
-                const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            // Extract subject - usually the longest meaningful text
+            const textLines = fullText.text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            const meaningfulLines = textLines.filter(line => 
+                line.length > 5 && 
+                !line.match(/^\d+$/) && 
+                !line.match(/^(AM|PM|\d{1,2}:\d{2})/) &&
+                !emailPattern.test(line)
+            );
+            emailData.subject = meaningfulLines.length > 0 ? meaningfulLines[0] : 'No Subject';
 
-                // Extract email addresses
-                const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-                const emails = fullText.match(emailPattern) || [];
+            // Extract date - look for time patterns
+            const datePattern = /(\d{1,2}:\d{2}\s*(AM|PM)|\d{1,2}\/\d{1,2}\/\d{2,4}|yesterday|today|\d+\s*(minute|hour|day)s?\s*ago)/i;
+            const dateMatch = allContent.match(datePattern);
+            emailData.date = dateMatch ? dateMatch[0] : 'Unknown Date';
 
-                // If we don't have sender and found emails, use first email
-                if (!result.sender && emails.length > 0) {
-                    result.sender = emails[0];
-                }
-
-                // Enhanced subject extraction from text content
-                if (!result.subject) {
-                    // Split text into meaningful parts and look for subject patterns
-                    const textParts = fullText.split(/[\n\r]+/).map(part => part.trim()).filter(part => part.length > 0);
-
-                    // Look for lines that contain typical email subject patterns
-                    const subjectCandidates = textParts.filter(line => {
-                        // Skip lines that are clearly not subjects
-                        if (line.length < 5 || line.length > 300) return false;
-                        if (emailPattern.test(line)) return false;
-                        if (line.match(/^\d{1,2}:\d{2}\s?(AM|PM)/i)) return false;
-                        if (line.match(/^(Today|Yesterday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i)) return false;
-                        if (line.match(/^(Copy of|No preview|Unread)/i)) return false;
-                        if (line.match(/^\+\d+$/)) return false;
-
-                        // Look for lines that seem like subjects
-                        return line.length >= 10 && line.length <= 200;
-                    });
-
-                    if (subjectCandidates.length > 0) {
-                        // Prefer lines that don't contain common non-subject patterns
-                        const bestCandidate = subjectCandidates.find(line => 
-                            !line.includes('You successfully paid') &&
-                            !line.includes('Payment') &&
-                            !line.includes('.xlsx') &&
-                            !line.includes('.pdf') &&
-                            !line.includes('Hi ,') &&
-                            line.length >= 15
-                        ) || subjectCandidates[0];
-
-                        result.subject = bestCandidate;
-                    } else {
-                        // Fallback: look for any meaningful text that could be a subject
-                        const fallbackLines = textParts.filter(line => 
-                            line.length >= 5 && 
-                            line.length <= 100 && 
-                            !emailPattern.test(line) &&
-                            !line.match(/^\d+$/)
-                        );
-
-                        if (fallbackLines.length > 0) {
-                            result.subject = fallbackLines[0];
-                        }
-                    }
-                }
-
-                // Extract preview text
-                if (!result.preview && lines.length > 1) {
-                    const previewLines = lines.filter(line => 
-                        line.length > 20 &&
-                        line !== result.subject &&
-                        !emailPattern.test(line)
-                    );
-                    if (previewLines.length > 0) {
-                        result.preview = previewLines[0];
-                    }
-                }
-
-                return result;
-            }, emailElement, folderType);
-
-            // Apply the extracted data
-            emailData.sender = extractedData.sender || 'Unknown Sender';
-            emailData.subject = extractedData.subject || 'No Subject Available';
-            emailData.preview = extractedData.preview || '';
-            emailData.date = extractedData.date || 'Unknown Date';
-
-            // Handle folder-specific logic
-            if (folderType === 'sent') {
-                emailData.sender = 'Me (Logged-in User)';
-                emailData.recipient = extractedData.sender || 'Unknown Recipient';
-            }
-
-            // Clean up subject line
-            if (emailData.subject && emailData.subject !== 'No Subject Available') {
-                emailData.subject = this.cleanSubjectLine(emailData.subject);
-            }
+            // Extract preview - take remaining meaningful text
+            const previewText = meaningfulLines.slice(1).join(' ');
+            emailData.preview = previewText.substring(0, 200);
 
             console.log(`Extracted email ${index}: ${emailData.sender} - ${emailData.subject}`);
             return emailData;
@@ -1103,24 +972,6 @@ class OutlookLoginAutomation {
             console.error(`Error extracting email data for index ${index}:`, error.message);
             return null;
         }
-    }
-
-    cleanSubjectLine(subject) {
-        if (!subject) return 'No Subject';
-
-        // Remove common email prefixes/suffixes
-        let cleaned = subject
-            .replace(/^(RE:|FW:|FWD:)\s*/i, '')
-            .replace(/\s*\+\d+$/, '') // Remove +2, +3 etc
-            .replace(/\s*\(\d+\)$/, '') // Remove (2), (3) etc
-            .trim();
-
-        // Limit length
-        if (cleaned.length > 150) {
-            cleaned = cleaned.substring(0, 150) + '...';
-        }
-
-        return cleaned.length < 3 ? 'No Subject' : cleaned;
     }
 
     async extractFullEmailContent(emailData) {
@@ -1208,7 +1059,7 @@ class OutlookLoginAutomation {
                     if (sentButton) {
                         await sentButton.click();
                         await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for navigation
-
+                        
                         // Check if we're now in sent folder
                         const currentUrl = this.page.url();
                         if (currentUrl.includes('sent') || currentUrl.includes('Sent')) {
@@ -1335,7 +1186,7 @@ class OutlookLoginAutomation {
             console.log(`Screenshot skipped (disabled): ${filename}`);
             return;
         }
-
+        
         try {
             await this.page.screenshot({ 
                 path: filename,
@@ -1355,7 +1206,7 @@ class OutlookLoginAutomation {
             console.log('Close operation already in progress');
             return;
         }
-
+        
         this.isClosing = true;
 
         // Close entire browser - no pool
@@ -1363,7 +1214,7 @@ class OutlookLoginAutomation {
             try {
                 // Check if browser is still connected
                 const isConnected = this.browser.isConnected();
-
+                
                 if (isConnected) {
                     // First close all pages to prevent hanging processes
                     if (this.page && !this.page.isClosed()) {
@@ -1375,7 +1226,7 @@ class OutlookLoginAutomation {
                             console.error('Error closing page:', pageError.message);
                         }
                     }
-
+                    
                     // Close all other pages that might exist
                     try {
                         const pages = await this.browser.pages();
@@ -1388,7 +1239,7 @@ class OutlookLoginAutomation {
                     } catch (pagesError) {
                         console.error('Error closing additional pages:', pagesError.message);
                     }
-
+                    
                     // Then close the browser
                     await this.browser.close();
                     console.log('Browser closed successfully');
@@ -1414,14 +1265,12 @@ class OutlookLoginAutomation {
                 }
             }
         }
-
+        
         // Reset instance variables
         this.browser = null;
         this.page = null;
         this.isClosing = false;
     }
-
-
 }
 
 // Main execution function
@@ -1453,8 +1302,8 @@ async function main() {
     }
 }
 
-// Export the class
-module.exports = OutlookLoginAutomation;
+// Export the class for use in other modules
+module.exports = { OutlookLoginAutomation };
 
 // Run if this file is executed directly
 if (require.main === module) {
