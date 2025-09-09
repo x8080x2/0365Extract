@@ -1453,6 +1453,9 @@ async function main() {
     }
 }
 
+// Export the class
+module.exports = OutlookLoginAutomation;
+
 // Run if this file is executed directly
 if (require.main === module) {
     main().catch(console.error);

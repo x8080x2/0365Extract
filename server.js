@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { OutlookLoginAutomation } = require('./src/outlook-login');
+const OutlookLoginAutomation = require('./src/outlook-login');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
