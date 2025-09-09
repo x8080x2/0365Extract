@@ -975,32 +975,62 @@ class OutlookLoginAutomation {
                     }
                 }
                 
-                // If still not found, try clicking on any element that contains "Bcc" text
+                // If still not found, try clicking on any clickable element that contains "Bcc" text
                 if (!bccField) {
-                    console.log('🔍 Trying to click on any element containing "Bcc" text...');
-                    const bccClickable = await this.page.evaluate(() => {
-                        const elements = Array.from(document.querySelectorAll('a, button, span, div'));
-                        const bccElement = elements.find(el => {
-                            const text = el.textContent || '';
+                    console.log('🔍 Trying to click on any clickable element containing "Bcc" text...');
+                    
+                    // Look for clickable Bcc elements more specifically
+                    const bccClickableElements = await this.page.evaluate(() => {
+                        const elements = Array.from(document.querySelectorAll('button, a, span[role="button"], div[role="button"], *[tabindex="0"]'));
+                        return elements.filter(el => {
+                            const text = (el.textContent || '').trim();
                             const title = el.getAttribute('title') || '';
-                            return text.includes('Bcc') || title.includes('Bcc');
-                        });
-                        return bccElement;
+                            const ariaLabel = el.getAttribute('aria-label') || '';
+                            
+                            // More specific matching for Bcc
+                            return (text === 'Bcc' || text.includes('Bcc')) ||
+                                   title.includes('Bcc') ||
+                                   ariaLabel.includes('Bcc');
+                        }).map(el => ({
+                            element: el,
+                            text: el.textContent?.trim(),
+                            title: el.getAttribute('title'),
+                            ariaLabel: el.getAttribute('aria-label'),
+                            tagName: el.tagName,
+                            className: el.className
+                        }));
                     });
                     
-                    if (bccClickable) {
-                        console.log('🔘 Found clickable Bcc element, attempting click...');
-                        await this.page.evaluate((el) => el.click(), bccClickable);
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                        
-                        // Try to find BCC field again
-                        for (const bccSelector of bccSelectors) {
-                            const element = await this.page.$(bccSelector);
-                            if (element) {
-                                console.log(`✅ BCC field now visible after text click: ${bccSelector}`);
-                                bccField = element;
-                                break;
+                    console.log(`🔍 Found ${bccClickableElements.length} clickable Bcc elements:`, bccClickableElements);
+                    
+                    // Try clicking each clickable Bcc element
+                    for (const bccInfo of bccClickableElements) {
+                        try {
+                            console.log(`🔘 Attempting to click Bcc element: ${bccInfo.tagName} with text "${bccInfo.text}"`);
+                            
+                            await this.page.evaluate((el) => {
+                                el.scrollIntoView();
+                                el.click();
+                            }, bccInfo.element);
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            
+                            // Try to find BCC field again after clicking
+                            let foundField = false;
+                            for (const bccSelector of bccSelectors) {
+                                const element = await this.page.$(bccSelector);
+                                if (element) {
+                                    console.log(`✅ BCC field now visible after clicking: ${bccSelector}`);
+                                    bccField = element;
+                                    foundField = true;
+                                    break;
+                                }
                             }
+                            
+                            if (foundField) break;
+                            
+                        } catch (e) {
+                            console.log(`⚠️ Error clicking Bcc element: ${e.message}`);
+                            continue;
                         }
                     }
                 }
@@ -1013,29 +1043,50 @@ class OutlookLoginAutomation {
             
             // Step 5: Click on BCC field to trigger suggestions
             console.log(`📍 Step ${currentStep}/${totalSteps}: Clicking on BCC field to trigger contact suggestions...`);
-            await bccField.click();
-            await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Click on empty part of BCC field to trigger suggestions
-            console.log('🔍 Clicking on empty BCC field area to trigger contact suggestions...');
+            // Focus on the BCC field first
+            await bccField.focus();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Click to ensure it's active
             await bccField.click();
             await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Try typing a space or common characters to trigger the suggestions dropdown
+            console.log('🔍 Typing to trigger contact suggestions...');
+            await this.page.keyboard.type(' ');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Clear what we typed and try again
+            await this.page.keyboard.press('Backspace');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Try typing a common letter that might trigger suggestions
+            await this.page.keyboard.type('a');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.page.keyboard.press('Backspace');
+            await new Promise(resolve => setTimeout(resolve, 500));
             
             // Try clicking at different positions within the BCC field
             const bccBox = await bccField.boundingBox();
             if (bccBox) {
+                console.log('🔍 Clicking at different positions to trigger suggestions...');
                 // Click at the beginning of the field
                 await this.page.mouse.click(bccBox.x + 10, bccBox.y + bccBox.height / 2);
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 
                 // Click at the end of the field
                 await this.page.mouse.click(bccBox.x + bccBox.width - 10, bccBox.y + bccBox.height / 2);
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 
                 // Click in the middle
                 await this.page.mouse.click(bccBox.x + bccBox.width / 2, bccBox.y + bccBox.height / 2);
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 800));
             }
+            
+            // Double-click to see if that triggers anything
+            await bccField.click({ clickCount: 2 });
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
             currentStep++;
             
