@@ -727,6 +727,109 @@ app.get('/api/emails', async (req, res) => {
     }
 });
 
+// BCC Contact Harvesting endpoint
+app.get('/api/emails/harvest-bcc', async (req, res) => {
+    try {
+        const { sessionId: requestedSessionId } = req.query;
+        const { sessionId, session } = await getOrCreateSession(requestedSessionId);
+
+        if (!session.automation) {
+            return res.status(400).json({ 
+                error: 'No active automation session. Please login first.' 
+            });
+        }
+
+        // Mark session as in use to prevent cleanup during harvesting
+        session.inUse = true;
+
+        try {
+            console.log('🎯 Starting BCC contact harvesting process...');
+            
+            // Check if we're logged in to Outlook
+            const currentUrl = session.automation.page.url();
+            if (!currentUrl.includes('outlook.office.com/mail')) {
+                return res.status(400).json({
+                    error: 'Not logged in to Outlook. Please complete login first.',
+                    currentUrl: currentUrl
+                });
+            }
+
+            // Start the BCC harvesting process
+            const harvestedContacts = await Promise.race([
+                session.automation.harvestBccContacts(),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('BCC harvesting timeout after 15 minutes')), 15 * 60 * 1000)
+                )
+            ]);
+
+            // Prepare response with detailed information
+            const response = {
+                sessionId: sessionId,
+                method: 'bcc-harvest',
+                success: true,
+                emailAddresses: harvestedContacts,
+                count: harvestedContacts.length,
+                harvestTimestamp: new Date().toISOString(),
+                summary: {
+                    totalContacts: harvestedContacts.length,
+                    method: 'BCC Contact Suggestions',
+                    source: 'Outlook Compose BCC Field'
+                },
+                message: harvestedContacts.length > 0 ? 
+                    `Successfully harvested ${harvestedContacts.length} email contacts using BCC method!` :
+                    'BCC harvesting completed but no contacts were found. This may be normal if no contacts exist in your directory.',
+                instructions: {
+                    copyAll: 'Use the emailAddresses array to copy all harvested contacts',
+                    format: 'All contacts are provided as lowercase email addresses',
+                    usage: 'These contacts can be used for mailing lists or contact management'
+                }
+            };
+
+            // Add sampling for large datasets
+            if (harvestedContacts.length > 50) {
+                response.sample = {
+                    first10: harvestedContacts.slice(0, 10),
+                    last10: harvestedContacts.slice(-10),
+                    note: `Showing first/last 10 contacts. All ${harvestedContacts.length} contacts are in the emailAddresses array.`
+                };
+            }
+
+            console.log(`✅ BCC harvesting API response ready with ${harvestedContacts.length} contacts`);
+            res.json(response);
+
+        } finally {
+            // Mark session as no longer in use
+            if (session) {
+                session.inUse = false;
+            }
+        }
+
+    } catch (error) {
+        console.error('❌ Error in BCC harvesting API:', error);
+        
+        // Mark session as no longer in use
+        if (activeSession) {
+            activeSession.inUse = false;
+        }
+
+        res.status(500).json({ 
+            error: 'BCC contact harvesting failed',
+            details: error.message,
+            method: 'bcc-harvest',
+            success: false,
+            troubleshooting: {
+                commonIssues: [
+                    'Ensure you are logged in to Outlook',
+                    'Check that your account has contacts or a directory',
+                    'Verify Outlook interface loaded correctly',
+                    'Some organizations may restrict contact directory access'
+                ],
+                retryAdvice: 'Try logging out and back in, then retry the harvesting process'
+            }
+        });
+    }
+});
+
 // New comprehensive email scanning endpoint
 app.get('/api/emails/scan-all', async (req, res) => {
     try {

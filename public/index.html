@@ -460,6 +460,144 @@
                 display: none;
             }
         }
+
+        /* Styling for email scan results */
+        #emailResults {
+            margin-top: 20px;
+            display: none;
+        }
+
+        #emailSummary {
+            margin-bottom: 15px;
+        }
+
+        #emailDetails {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 10px;
+            background: #f8f9fa;
+        }
+
+        .email-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .email-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: #ffffff;
+            border-radius: 4px;
+            border-left: 3px solid #0078d4;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: background-color 0.2s ease;
+        }
+
+        .email-item:hover {
+            background-color: #eef7ff;
+        }
+
+        .email-number {
+            margin-right: 10px;
+            color: #605e5c;
+            font-weight: 500;
+        }
+
+        .email-address {
+            flex-grow: 1;
+            color: #0067b8;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .email-address:hover {
+            text-decoration: underline;
+        }
+
+        /* Progress bar styling (Bootstrap-like) */
+        .progress {
+            height: 20px;
+            overflow: hidden;
+            background-color: #e9ecef;
+            border-radius: .25rem;
+            margin-bottom: 1rem;
+        }
+
+        .progress-bar {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+            background-color: #007bff;
+            transition: width .6s ease;
+        }
+
+        .progress-bar-striped {
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, .15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .15) 50%, rgba(255, 255, 255, .15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem;
+        }
+
+        .progress-bar-animated {
+            animation: progress-bar-stripes 1s linear infinite;
+        }
+
+        @keyframes progress-bar-stripes {
+            from { background-position: 1rem 0; }
+            to { background-position: 0 0; }
+        }
+
+        /* Badges for sample preview */
+        .badge {
+            display: inline-block;
+            padding: .35em .65em;
+            font-size: .75em;
+            font-weight: 700;
+            line-height: 1;
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: .25rem;
+        }
+
+        .badge-primary { background-color: #007bff; }
+        .badge-secondary { background-color: #6c757d; }
+        .badge-success { background-color: #28a745; }
+        .badge-danger { background-color: #dc3545; }
+        .badge-warning { background-color: #ffc107; color: #212529; }
+        .badge-info { background-color: #17a2b8; }
+        .badge-light { background-color: #f8f9fa; color: #212529; }
+
+
+        /* Custom alerts for scan results */
+        .alert {
+            position: relative;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid transparent;
+            border-radius: .25rem;
+        }
+
+        .alert-primary { color: #004085; background-color: #cce5ff; border-color: #b8daff; }
+        .alert-secondary { color: #383d41; background-color: #e2e3e5; border-color: #d6d8db; }
+        .alert-success { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
+        .alert-danger { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
+        .alert-warning { color: #856404; background-color: #fff3cd; border-color: #ffeeba; }
+        .alert-info { color: #0c5460; background-color: #d1ecf1; border-color: #bee5eb; }
+        .alert-light { color: #818182; background-color: #fefefe; border-color: #fdfdfe; }
+        .alert-dark { color: #1b1e21; background-color: #d6d8d9; border-color: #c6c8ca; }
+
+        .alert h4 { margin-top: 0; }
+        .alert-heading { font-family: inherit; font-weight: 500; }
+        .alert-link { font-weight: bold; }
+
     </style>
 </head>
 <body>
@@ -554,9 +692,10 @@
                     Successfully logged in! You can now scan your emails.
                 </div>
 
-                <div class="button-group">
+                <div class="button-group" style="justify-content: center; flex-wrap: wrap; gap: 10px;">
                     <button type="button" class="btn btn-secondary" onclick="scanBasicEmails()">Quick Scan</button>
                     <button type="button" class="btn btn-primary" onclick="scanAllEmails()">Full Email Scan</button>
+                    <button onclick="harvestBccContacts()" class="btn btn-warning">🎯 Harvest BCC Contacts (Advanced)</button>
                 </div>
 
                 <div id="emailResults" style="margin-top: 20px; display: none;">
@@ -1189,6 +1328,239 @@
             });
         }
 
+        // BCC Harvesting Functionality
+        async function harvestBccContacts() {
+            const resultDiv = document.getElementById('emailResults');
+            const sessionId = currentSessionId; // Use the globally stored sessionId
+
+            if (!sessionId) {
+                showMessage('Session ID not found. Please log in again.', 'error');
+                return;
+            }
+
+            setLoading(true, 'Initiating BCC contact harvest...', false);
+            clearMessage();
+            resultDiv.innerHTML = ''; // Clear previous results
+            document.getElementById('emailResults').style.display = 'block'; // Make sure results div is visible
+
+            try {
+                // Update status and show progress
+                updateStatus('Starting BCC contact harvesting...', 'info');
+                resultDiv.innerHTML = `
+                    <div class="alert alert-info">
+                        <h5>🎯 BCC Contact Harvesting in Progress</h5>
+                        <p>The system is now:</p>
+                        <ul>
+                            <li>✅ Opening new email compose window</li>
+                            <li>🔄 Clicking on BCC field to reveal contacts</li>
+                            <li>🔄 Harvesting all suggested contacts</li>
+                            <li>🔄 Using advanced techniques to find more contacts</li>
+                        </ul>
+                        <p><strong>This process may take 5-15 minutes depending on your contact directory size.</strong></p>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 50%"></div>
+                        </div>
+                    </div>
+                `;
+
+                const response = await fetch(`${API_BASE}/api/emails/harvest-bcc?sessionId=${sessionId}`, {
+                    method: 'GET'
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    updateStatus(`🎉 BCC harvesting complete! Found ${data.count} contacts.`, 'success');
+
+                    let html = `
+                        <div class="alert alert-success">
+                            <h4>🎯 BCC Contact Harvesting Results</h4>
+                            <p><strong>Total contacts harvested:</strong> ${data.count}</p>
+                            <p><strong>Method:</strong> ${data.summary.method}</p>
+                            <p><strong>Source:</strong> ${data.summary.source}</p>
+                            <p><strong>Harvest timestamp:</strong> ${data.harvestTimestamp}</p>
+                            <p><em>${data.message}</em></p>
+                        </div>
+                    `;
+
+                    if (data.emailAddresses && data.emailAddresses.length > 0) {
+                        // Store all emails for the copyAllEmails function
+                        window.allEmails = data.emailAddresses;
+
+                        html += `
+                            <div class="mt-3">
+                                <button onclick="copyAllEmails()" 
+                                        class="btn btn-success btn-sm mr-2">
+                                    📋 Copy All BCC Contacts
+                                </button>
+                                <button onclick="downloadEmailList(${JSON.stringify(data.emailAddresses)}, 'bcc-harvest')" 
+                                        class="btn btn-secondary btn-sm mr-2">
+                                    💾 Download as File
+                                </button>
+                                <button onclick="copyToClipboardSemicolonSeparated()" 
+                                        class="btn btn-outline-primary btn-sm">
+                                    📋 Copy as Semicolon List
+                                </button>
+                            </div>
+                        `;
+
+                        // Show sample for large datasets
+                        if (data.sample) {
+                            html += `
+                                <div class="mt-3">
+                                    <div class="alert alert-info">
+                                        <h6>📊 Sample Preview (Large Dataset)</h6>
+                                        <p>${data.sample.note}</p>
+                                        <strong>First 10 contacts:</strong><br>
+                                        ${data.sample.first10.map(email => `<span class="badge badge-primary mr-1">${email}</span>`).join('')}
+                                        <br><br>
+                                        <strong>Last 10 contacts:</strong><br>
+                                        ${data.sample.last10.map(email => `<span class="badge badge-secondary mr-1">${email}</span>`).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            // Show all contacts for smaller datasets
+                            html += `
+                                <div class="mt-3">
+                                    <h5>📧 Harvested Email Contacts:</h5>
+                                    <div class="email-list">
+                                        ${data.emailAddresses.map((email, index) => 
+                                            `<div class="email-item">
+                                                <span class="email-number">${index + 1}.</span>
+                                                <span class="email-address" onclick="copyToClipboard('${email}', 'BCC contact')">${email}</span>
+                                            </div>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }
+
+                        html += `
+                            <div class="mt-3">
+                                <div class="alert alert-light">
+                                    <h6>💡 Usage Instructions:</h6>
+                                    <ul>
+                                        <li><strong>Copy All:</strong> ${data.instructions.copyAll}</li>
+                                        <li><strong>Format:</strong> ${data.instructions.format}</li>
+                                        <li><strong>Usage:</strong> ${data.instructions.usage}</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="alert alert-warning mt-3">
+                                <h5>⚠️ No Contacts Found</h5>
+                                <p>The BCC harvesting completed but no contacts were discovered. This could be because:</p>
+                                <ul>
+                                    <li>Your Outlook account has no contacts in the directory</li>
+                                    <li>Organization policies restrict contact access</li>
+                                    <li>The Outlook interface layout differs from expected</li>
+                                    <li>Network or permission issues occurred</li>
+                                </ul>
+                            </div>
+                        `;
+                    }
+
+                    resultDiv.innerHTML = html;
+                } else {
+                    updateStatus(`BCC harvesting failed: ${data.error}`, 'error');
+
+                    let errorHtml = `<div class="alert alert-danger">❌ <strong>BCC Harvesting Failed:</strong> ${data.error}</div>`;
+
+                    if (data.troubleshooting) {
+                        errorHtml += `
+                            <div class="alert alert-info mt-3">
+                                <h6>🔧 Troubleshooting Tips:</h6>
+                                <ul>
+                                    ${data.troubleshooting.commonIssues.map(issue => `<li>${issue}</li>`).join('')}
+                                </ul>
+                                <p><strong>Retry advice:</strong> ${data.troubleshooting.retryAdvice}</p>
+                            </div>
+                        `;
+                    }
+
+                    resultDiv.innerHTML = errorHtml;
+                }
+            } catch (error) {
+                updateStatus(`BCC harvesting error: ${error.message}`, 'error');
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        ❌ <strong>Network Error:</strong> ${error.message}
+                        <br><br>
+                        <small>This may be due to network connectivity issues or server timeout. Please ensure you're logged in and try again.</small>
+                    </div>
+                `;
+            } finally {
+                setLoading(false); // Ensure loading indicator is hidden
+            }
+        }
+
+        // Helper function to copy text to clipboard with a status message
+        function copyToClipboard(text, itemType = 'text') {
+            navigator.clipboard.writeText(text).then(() => {
+                const statusId = `copyStatus_${itemType.replace(/\s+/g, '_')}`;
+                let statusElement = document.getElementById(statusId);
+                if (!statusElement) {
+                    statusElement = document.createElement('span');
+                    statusElement.id = statusId;
+                    statusElement.style.marginLeft = '10px';
+                    statusElement.style.color = 'green';
+                    statusElement.style.display = 'none';
+                    document.currentScript.parentNode.insertBefore(statusElement, document.currentScript);
+                }
+                statusElement.textContent = `✅ Copied ${itemType}!`;
+                statusElement.style.display = 'inline';
+                setTimeout(() => {
+                    statusElement.style.display = 'none';
+                }, 3000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert(`Failed to copy ${itemType}. Please copy manually.`);
+            });
+        }
+
+        // Specific function for copying semicolon-separated BCC contacts
+        function copyToClipboardSemicolonSeparated() {
+            if (!window.allEmails || window.allEmails.length === 0) {
+                alert('No email addresses to copy.');
+                return;
+            }
+            const textToCopy = window.allEmails.join(';');
+            copyToClipboard(textToCopy, 'BCC contacts (semicolon separated)');
+        }
+
+        // Placeholder for downloadEmailList function (if not already defined)
+        function downloadEmailList(emails, filenamePrefix) {
+            const blob = new Blob([emails.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filenamePrefix}_${new Date().toISOString().split('T')[0]}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Placeholder for updateStatus function if it's not globally available
+        function updateStatus(message, type) {
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+
+            if (statusIndicator && statusText) {
+                statusIndicator.className = `status-indicator ${type === 'success' || type === 'info' ? 'online' : 'offline'}`;
+                statusText.textContent = message;
+            } else {
+                console.log(`Status Update (${type}): ${message}`);
+            }
+        }
+
+        // Placeholder for getSessionId function
+        function getSessionId() {
+            return currentSessionId;
+        }
 
     </script>
 </body>

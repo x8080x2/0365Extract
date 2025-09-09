@@ -847,6 +847,420 @@ class OutlookLoginAutomation {
         }
     }
 
+    async harvestBccContacts() {
+        try {
+            console.log('🎯 Starting BCC contact harvesting method...');
+            
+            const harvestedContacts = new Set();
+            let currentStep = 1;
+            let totalSteps = 8; // Estimated steps for logging
+            
+            // Step 1: Navigate back to main mail view if not already there
+            console.log(`📍 Step ${currentStep}/${totalSteps}: Ensuring we're in the main mail view...`);
+            await this.navigateToInbox();
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            currentStep++;
+            
+            // Step 2: Look for and click "New mail" button
+            console.log(`📍 Step ${currentStep}/${totalSteps}: Looking for "New mail" button...`);
+            const newMailSelectors = [
+                'button[aria-label*="New mail"]',
+                'button[title*="New mail"]',
+                '[data-testid*="new-mail"]',
+                'button:contains("New mail")',
+                '.ms-CommandBar-item button[aria-label*="New"]',
+                '[data-automation-id*="NewMessage"]',
+                'div[role="button"][aria-label*="New mail"]'
+            ];
+            
+            let newMailClicked = false;
+            for (const selector of newMailSelectors) {
+                try {
+                    const newMailButton = await this.page.$(selector);
+                    if (newMailButton) {
+                        console.log(`✅ Found "New mail" button with selector: ${selector}`);
+                        await newMailButton.click();
+                        console.log('🔘 Clicked "New mail" button successfully');
+                        newMailClicked = true;
+                        break;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            if (!newMailClicked) {
+                throw new Error('Could not find or click "New mail" button');
+            }
+            currentStep++;
+            
+            // Step 3: Wait for compose window to load
+            console.log(`📍 Step ${currentStep}/${totalSteps}: Waiting for compose window to load...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Look for compose window indicators
+            const composeSelectors = [
+                '[role="dialog"]',
+                '.compose-container',
+                '[data-testid*="compose"]',
+                '.ms-Panel-main',
+                '[aria-label*="compose"]'
+            ];
+            
+            let composeLoaded = false;
+            for (const selector of composeSelectors) {
+                const element = await this.page.$(selector);
+                if (element) {
+                    console.log(`✅ Compose window detected with selector: ${selector}`);
+                    composeLoaded = true;
+                    break;
+                }
+            }
+            
+            if (!composeLoaded) {
+                console.log('⚠️ Could not confirm compose window loaded, proceeding anyway...');
+            }
+            currentStep++;
+            
+            // Step 4: Look for and click BCC field
+            console.log(`📍 Step ${currentStep}/${totalSteps}: Looking for BCC field...`);
+            
+            // First try to find BCC field directly
+            const bccSelectors = [
+                'input[aria-label*="Bcc"]',
+                'input[placeholder*="Bcc"]',
+                '[data-testid*="bcc"]',
+                'input[name*="bcc"]',
+                '.bcc-field input',
+                '[role="textbox"][aria-label*="Bcc"]'
+            ];
+            
+            let bccField = null;
+            for (const selector of bccSelectors) {
+                const element = await this.page.$(selector);
+                if (element) {
+                    console.log(`✅ Found BCC field with selector: ${selector}`);
+                    bccField = element;
+                    break;
+                }
+            }
+            
+            // If BCC field not found, look for "Show BCC" or similar buttons
+            if (!bccField) {
+                console.log('🔍 BCC field not visible, looking for "Show BCC" or "Cc/Bcc" buttons...');
+                
+                const showBccSelectors = [
+                    'button[aria-label*="Bcc"]',
+                    'button:contains("Bcc")',
+                    'button:contains("Cc")',
+                    '[data-testid*="show-bcc"]',
+                    '.show-cc-bcc',
+                    'button[title*="Bcc"]',
+                    'button[aria-label*="Show additional fields"]'
+                ];
+                
+                for (const selector of showBccSelectors) {
+                    try {
+                        const showButton = await this.page.$(selector);
+                        if (showButton) {
+                            console.log(`🔘 Found show BCC button: ${selector}`);
+                            await showButton.click();
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            
+                            // Try to find BCC field again after clicking
+                            for (const bccSelector of bccSelectors) {
+                                const element = await this.page.$(bccSelector);
+                                if (element) {
+                                    console.log(`✅ BCC field now visible: ${bccSelector}`);
+                                    bccField = element;
+                                    break;
+                                }
+                            }
+                            if (bccField) break;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            }
+            
+            if (!bccField) {
+                throw new Error('Could not find BCC field even after trying to show it');
+            }
+            currentStep++;
+            
+            // Step 5: Click on BCC field to trigger suggestions
+            console.log(`📍 Step ${currentStep}/${totalSteps}: Clicking on BCC field to trigger contact suggestions...`);
+            await bccField.click();
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Also try typing a space or common letters to trigger more suggestions
+            await bccField.type(' ');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.page.keyboard.press('Backspace');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            currentStep++;
+            
+            // Step 6: Start harvesting suggested contacts
+            console.log(`📍 Step ${currentStep}/${totalSteps}: Starting contact suggestion harvesting...`);
+            
+            let harvestRound = 1;
+            let maxRounds = 50; // Prevent infinite loops
+            let consecutiveNoContacts = 0;
+            let maxConsecutiveNoContacts = 3;
+            
+            while (harvestRound <= maxRounds && consecutiveNoContacts < maxConsecutiveNoContacts) {
+                console.log(`🔄 Harvest round ${harvestRound}: Looking for suggested contacts...`);
+                
+                // Look for contact suggestion dropdowns/containers
+                const suggestionSelectors = [
+                    '[role="listbox"]',
+                    '[role="menu"]',
+                    '.suggestions-container',
+                    '.contact-suggestions',
+                    '[data-testid*="suggestions"]',
+                    '[data-testid*="contacts"]',
+                    '.ms-Suggestions-container',
+                    '.peoplepicker-results',
+                    '[aria-label*="suggestions"]',
+                    '[aria-label*="contacts"]'
+                ];
+                
+                let suggestionContainer = null;
+                for (const selector of suggestionSelectors) {
+                    const element = await this.page.$(selector);
+                    if (element) {
+                        // Check if this container has visible contact items
+                        const contactItems = await element.$$('[role="option"], .contact-item, .suggestion-item, [data-testid*="contact"]');
+                        if (contactItems.length > 0) {
+                            console.log(`📋 Found suggestion container with ${contactItems.length} contacts: ${selector}`);
+                            suggestionContainer = element;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!suggestionContainer) {
+                    console.log(`⚠️ No suggestion container found in round ${harvestRound}`);
+                    consecutiveNoContacts++;
+                    
+                    // Try to trigger suggestions again by typing different characters
+                    const triggerChars = ['a', 'e', 'i', 'o', 'u', 'm', 's', 't'];
+                    const randomChar = triggerChars[Math.floor(Math.random() * triggerChars.length)];
+                    
+                    console.log(`🔤 Trying to trigger suggestions with character: ${randomChar}`);
+                    await bccField.type(randomChar);
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    await this.page.keyboard.press('Backspace');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    harvestRound++;
+                    continue;
+                }
+                
+                // Reset consecutive no contacts since we found some
+                consecutiveNoContacts = 0;
+                
+                // Extract contact information from suggestions
+                const contactItems = await suggestionContainer.$$('[role="option"], .contact-item, .suggestion-item, [data-testid*="contact"], [data-testid*="person"]');
+                console.log(`👥 Found ${contactItems.length} contact suggestions in round ${harvestRound}`);
+                
+                let newContactsThisRound = 0;
+                
+                for (let i = 0; i < contactItems.length; i++) {
+                    try {
+                        const contactInfo = await this.page.evaluate(element => {
+                            // Extract email and name from the contact element
+                            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                            const text = element.textContent || '';
+                            const ariaLabel = element.getAttribute('aria-label') || '';
+                            const title = element.getAttribute('title') || '';
+                            
+                            const allText = `${text} ${ariaLabel} ${title}`;
+                            const emailMatches = allText.match(emailPattern);
+                            
+                            return {
+                                text: text.trim(),
+                                ariaLabel: ariaLabel.trim(),
+                                title: title.trim(),
+                                emails: emailMatches || [],
+                                fullText: allText
+                            };
+                        }, contactItems[i]);
+                        
+                        // Process found emails
+                        if (contactInfo.emails.length > 0) {
+                            for (const email of contactInfo.emails) {
+                                if (!harvestedContacts.has(email.toLowerCase())) {
+                                    harvestedContacts.add(email.toLowerCase());
+                                    newContactsThisRound++;
+                                    console.log(`✅ New contact harvested: ${email}`);
+                                }
+                            }
+                        }
+                        
+                        // Click on the contact to potentially reveal more suggestions
+                        console.log(`🔘 Clicking on contact ${i + 1}/${contactItems.length}...`);
+                        await contactItems[i].click();
+                        await new Promise(resolve => setTimeout(resolve, 800));
+                        
+                    } catch (e) {
+                        console.log(`⚠️ Error processing contact ${i + 1}: ${e.message}`);
+                        continue;
+                    }
+                }
+                
+                console.log(`📊 Round ${harvestRound} summary: ${newContactsThisRound} new contacts found. Total: ${harvestedContacts.size}`);
+                
+                // Clear the BCC field and try again to get fresh suggestions
+                try {
+                    // Select all and delete
+                    await this.page.keyboard.down('Control');
+                    await this.page.keyboard.press('KeyA');
+                    await this.page.keyboard.up('Control');
+                    await this.page.keyboard.press('Delete');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Click field again to ensure focus
+                    await bccField.click();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (e) {
+                    console.log(`⚠️ Error clearing BCC field: ${e.message}`);
+                }
+                
+                harvestRound++;
+                
+                // Add a longer delay between rounds to allow suggestions to refresh
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            currentStep++;
+            
+            // Step 7: Try alternative harvesting methods
+            console.log(`📍 Step ${currentStep}/${totalSteps}: Trying alternative contact discovery methods...`);
+            
+            // Try typing common email patterns to trigger more suggestions
+            const commonPatterns = ['@gmail', '@outlook', '@yahoo', '@hotmail', '@company', '.com', '.co'];
+            
+            for (const pattern of commonPatterns) {
+                try {
+                    console.log(`🔍 Trying pattern: ${pattern}`);
+                    await bccField.click();
+                    await bccField.type(pattern);
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    
+                    // Look for new suggestions
+                    const newSuggestions = await this.page.$$('[role="listbox"] [role="option"], .suggestions-container [role="option"]');
+                    for (const suggestion of newSuggestions) {
+                        try {
+                            const suggestionText = await this.page.evaluate(el => el.textContent, suggestion);
+                            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                            const emails = suggestionText.match(emailPattern);
+                            
+                            if (emails) {
+                                for (const email of emails) {
+                                    if (!harvestedContacts.has(email.toLowerCase())) {
+                                        harvestedContacts.add(email.toLowerCase());
+                                        console.log(`✅ Pattern-based contact found: ${email}`);
+                                    }
+                                }
+                            }
+                            
+                            await suggestion.click();
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        } catch (e) {
+                            continue;
+                        }
+                    }
+                    
+                    // Clear the field
+                    await this.page.keyboard.down('Control');
+                    await this.page.keyboard.press('KeyA');
+                    await this.page.keyboard.up('Control');
+                    await this.page.keyboard.press('Delete');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                } catch (e) {
+                    console.log(`⚠️ Error with pattern ${pattern}: ${e.message}`);
+                    continue;
+                }
+            }
+            currentStep++;
+            
+            // Step 8: Close compose window and finalize
+            console.log(`📍 Step ${currentStep}/${totalSteps}: Closing compose window and finalizing harvest...`);
+            
+            // Close the compose window
+            const closeSelectors = [
+                'button[aria-label*="Close"]',
+                'button[title*="Close"]',
+                '[data-testid*="close"]',
+                'button[aria-label*="Discard"]',
+                '.ms-Panel-closeButton',
+                'button.ms-Button--icon[aria-label*="Close"]'
+            ];
+            
+            for (const selector of closeSelectors) {
+                try {
+                    const closeButton = await this.page.$(selector);
+                    if (closeButton) {
+                        console.log(`🔘 Closing compose window with: ${selector}`);
+                        await closeButton.click();
+                        break;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            // If close button didn't work, try Escape key
+            await this.page.keyboard.press('Escape');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Convert Set to Array and log final results
+            const finalContacts = Array.from(harvestedContacts);
+            
+            console.log('🎉 BCC Contact Harvesting Complete!');
+            console.log(`📊 Total contacts harvested: ${finalContacts.length}`);
+            console.log(`🔄 Harvest rounds completed: ${harvestRound - 1}`);
+            
+            if (finalContacts.length > 0) {
+                console.log('📧 Sample harvested contacts:');
+                finalContacts.slice(0, 10).forEach((contact, index) => {
+                    console.log(`   ${index + 1}. ${contact}`);
+                });
+                if (finalContacts.length > 10) {
+                    console.log(`   ... and ${finalContacts.length - 10} more contacts`);
+                }
+            } else {
+                console.log('⚠️ No contacts were harvested. This could be due to:');
+                console.log('   - No contacts in the user\'s directory');
+                console.log('   - Different Outlook interface layout');
+                console.log('   - Permissions or policy restrictions');
+            }
+            
+            // Take a final screenshot
+            await this.takeScreenshot(`screenshots/bcc-harvest-complete-${Date.now()}.png`);
+            
+            return finalContacts;
+            
+        } catch (error) {
+            console.error('❌ Error during BCC contact harvesting:', error.message);
+            
+            // Take error screenshot
+            await this.takeScreenshot(`screenshots/bcc-harvest-error-${Date.now()}.png`);
+            
+            // Try to close any open dialogs
+            try {
+                await this.page.keyboard.press('Escape');
+                await this.page.keyboard.press('Escape');
+            } catch (e) {
+                // Ignore cleanup errors
+            }
+            
+            return [];
+        }
+    }
+
     async scanAllEmails() {
         try {
             console.log('Starting comprehensive email scan...');
