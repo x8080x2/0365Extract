@@ -1063,7 +1063,7 @@ class OutlookLoginAutomation {
         let foundEmails = [];
         
         try {
-            console.log(`📧 Clicking on ${folderType} email ${index} to extract internal email addresses...`);
+            console.log(`📧 Clicking on ${folderType} email ${index} to extract email addresses from conversation...`);
             
             // Click on the email to open it
             await emailElement.click();
@@ -1077,77 +1077,197 @@ class OutlookLoginAutomation {
             // Expand conversation thread to get all emails in the conversation
             await this.expandConversationThread();
             
-            // Extract email addresses from the opened email
+            // Extract email addresses from the opened email conversation
             const emailAddresses = await this.page.evaluate(() => {
                 const addresses = new Set();
-                
-                // Email pattern to find all email addresses
                 const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
                 
-                // Get all text content from the email
-                const fullPageText = document.body.textContent || '';
-                const emailMatches = fullPageText.match(emailPattern);
-                if (emailMatches) {
-                    emailMatches.forEach(email => addresses.add(email.toLowerCase().trim()));
-                }
+                // Function to extract emails from text
+                const extractEmailsFromText = (text) => {
+                    if (!text) return;
+                    const matches = text.match(emailPattern);
+                    if (matches) {
+                        matches.forEach(email => {
+                            const cleanEmail = email.toLowerCase().trim();
+                            // Filter out common false positives
+                            if (!cleanEmail.includes('example.com') && 
+                                !cleanEmail.includes('noreply@') && 
+                                cleanEmail.length > 5) {
+                                addresses.add(cleanEmail);
+                            }
+                        });
+                    }
+                };
                 
-                // Look for specific email header elements
-                const emailSelectors = [
-                    '[data-testid="email-from"]',
-                    '[data-testid="email-to"]', 
-                    '[data-testid="email-cc"]',
-                    '[data-testid="email-bcc"]',
-                    '[aria-label*="From:"]',
-                    '[aria-label*="To:"]',
-                    '[aria-label*="Cc:"]',
-                    '[aria-label*="Bcc:"]',
-                    '.from-field',
-                    '.to-field', 
-                    '.cc-field',
-                    '.bcc-field',
+                // 1. Search for specific email header fields (From, To, CC, BCC)
+                const headerSelectors = [
+                    // Microsoft Outlook specific selectors
+                    '[data-testid*="from"]', '[data-testid*="to"]', '[data-testid*="cc"]', '[data-testid*="bcc"]',
+                    '[aria-label*="From:"]', '[aria-label*="To:"]', '[aria-label*="Cc:"]', '[aria-label*="Bcc:"]',
+                    '[aria-label*="FROM:"]', '[aria-label*="TO:"]', '[aria-label*="CC:"]', '[aria-label*="BCC:"]',
+                    
+                    // Generic email field selectors
+                    '.from-field', '.to-field', '.cc-field', '.bcc-field',
+                    '.email-from', '.email-to', '.email-cc', '.email-bcc',
+                    
+                    // Outlook Web specific selectors
+                    '[data-automation-id*="from"]', '[data-automation-id*="to"]', 
+                    '[data-automation-id*="cc"]', '[data-automation-id*="bcc"]',
+                    
+                    // Look for elements with email-like titles
                     '[title*="@"]',
-                    '[data-automation-id*="email"]'
+                    
+                    // Conversation participant selectors
+                    '.participants', '.conversation-participants', '.email-participants',
+                    '[role="listitem"]', // Often used for participant lists
+                    
+                    // Header container selectors
+                    '.email-header', '.message-header', '.conversation-header'
                 ];
                 
-                emailSelectors.forEach(selector => {
+                headerSelectors.forEach(selector => {
                     try {
                         const elements = document.querySelectorAll(selector);
                         elements.forEach(element => {
-                            const text = element.textContent || element.getAttribute('aria-label') || element.getAttribute('title') || '';
-                            const matches = text.match(emailPattern);
-                            if (matches) {
-                                matches.forEach(email => addresses.add(email.toLowerCase().trim()));
-                            }
+                            // Extract from text content
+                            extractEmailsFromText(element.textContent);
+                            
+                            // Extract from aria-label
+                            extractEmailsFromText(element.getAttribute('aria-label'));
+                            
+                            // Extract from title
+                            extractEmailsFromText(element.getAttribute('title'));
+                            
+                            // Extract from data attributes that might contain emails
+                            const dataAttrs = element.getAttributeNames();
+                            dataAttrs.forEach(attr => {
+                                if (attr.startsWith('data-')) {
+                                    extractEmailsFromText(element.getAttribute(attr));
+                                }
+                            });
                         });
                     } catch (e) {
                         // Continue with next selector
                     }
                 });
                 
-                // Also look for email addresses in all aria-label attributes
+                // 2. Search for conversation thread emails (multiple emails in thread)
+                const conversationSelectors = [
+                    '.conversation-item', '.message-item', '.email-item',
+                    '[role="article"]', '[role="group"]', // Semantic containers
+                    '.ms-FocusZone', // Microsoft Fabric UI containers
+                    '[data-testid*="message"]', '[data-testid*="conversation"]'
+                ];
+                
+                conversationSelectors.forEach(selector => {
+                    try {
+                        const conversationItems = document.querySelectorAll(selector);
+                        conversationItems.forEach(item => {
+                            // Look for email headers within each conversation item
+                            const itemHeaderSelectors = [
+                                '[aria-label*="From:"]', '[aria-label*="To:"]', 
+                                '[aria-label*="Cc:"]', '[aria-label*="Bcc:"]'
+                            ];
+                            
+                            itemHeaderSelectors.forEach(headerSel => {
+                                const headerElements = item.querySelectorAll(headerSel);
+                                headerElements.forEach(headerEl => {
+                                    extractEmailsFromText(headerEl.textContent);
+                                    extractEmailsFromText(headerEl.getAttribute('aria-label'));
+                                });
+                            });
+                            
+                            // Also extract from any text that looks like email headers
+                            const itemText = item.textContent || '';
+                            const headerPatterns = [
+                                /From:\s*([^<]*<[^>]+>|[^\s]+@[^\s]+)/gi,
+                                /To:\s*([^<]*<[^>]+>|[^\s]+@[^\s]+)/gi,
+                                /Cc:\s*([^<]*<[^>]+>|[^\s]+@[^\s]+)/gi,
+                                /Bcc:\s*([^<]*<[^>]+>|[^\s]+@[^\s]+)/gi
+                            ];
+                            
+                            headerPatterns.forEach(pattern => {
+                                const matches = itemText.match(pattern);
+                                if (matches) {
+                                    matches.forEach(match => extractEmailsFromText(match));
+                                }
+                            });
+                        });
+                    } catch (e) {
+                        // Continue
+                    }
+                });
+                
+                // 3. Search in all aria-labels (comprehensive scan)
                 const elementsWithAriaLabel = document.querySelectorAll('[aria-label]');
                 elementsWithAriaLabel.forEach(element => {
                     const ariaLabel = element.getAttribute('aria-label');
-                    if (ariaLabel) {
-                        const matches = ariaLabel.match(emailPattern);
-                        if (matches) {
-                            matches.forEach(email => addresses.add(email.toLowerCase().trim()));
-                        }
+                    if (ariaLabel && (
+                        ariaLabel.toLowerCase().includes('from:') ||
+                        ariaLabel.toLowerCase().includes('to:') ||
+                        ariaLabel.toLowerCase().includes('cc:') ||
+                        ariaLabel.toLowerCase().includes('bcc:') ||
+                        ariaLabel.includes('@')
+                    )) {
+                        extractEmailsFromText(ariaLabel);
                     }
                 });
                 
-                // Look in all title attributes too
+                // 4. Search in all title attributes
                 const elementsWithTitle = document.querySelectorAll('[title]');
                 elementsWithTitle.forEach(element => {
                     const title = element.getAttribute('title');
-                    if (title) {
-                        const matches = title.match(emailPattern);
-                        if (matches) {
-                            matches.forEach(email => addresses.add(email.toLowerCase().trim()));
-                        }
+                    if (title && title.includes('@')) {
+                        extractEmailsFromText(title);
                     }
                 });
                 
+                // 5. Search for email addresses in specific Outlook UI elements
+                const outlookSpecificSelectors = [
+                    // Outlook ribbon and header areas
+                    '.ms-CommandBar', '.ms-Pivot', '.ms-DetailsList',
+                    
+                    // Email display areas
+                    '[data-automation-id="MessageHeader"]',
+                    '[data-automation-id="FromLine"]',
+                    '[data-automation-id="ToLine"]',
+                    '[data-automation-id="CcLine"]',
+                    '[data-automation-id="BccLine"]',
+                    
+                    // Conversation view elements
+                    '[data-automation-id="ConversationContainer"]',
+                    '[data-automation-id="MessageContainer"]'
+                ];
+                
+                outlookSpecificSelectors.forEach(selector => {
+                    try {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(element => {
+                            extractEmailsFromText(element.textContent);
+                        });
+                    } catch (e) {
+                        // Continue
+                    }
+                });
+                
+                // 6. Final comprehensive text scan of email body (as backup)
+                const emailBodySelectors = [
+                    '[role="main"]', '.email-content', '[data-testid="email-body"]',
+                    '.message-body', '.conversation-body'
+                ];
+                
+                emailBodySelectors.forEach(selector => {
+                    try {
+                        const bodyElement = document.querySelector(selector);
+                        if (bodyElement) {
+                            extractEmailsFromText(bodyElement.textContent);
+                        }
+                    } catch (e) {
+                        // Continue
+                    }
+                });
+                
+                console.log(`Found ${addresses.size} unique email addresses in conversation`);
                 return Array.from(addresses);
             });
             
@@ -1238,23 +1358,29 @@ class OutlookLoginAutomation {
         return foundEmails.length > 0 ? foundEmails : null;
     }
 
-    // New method to expand conversation threads to get all emails in a conversation
+    // Enhanced method to expand conversation threads and show all email headers
     async expandConversationThread() {
         try {
-            console.log('🔄 Expanding conversation thread to access all emails...');
+            console.log('🔄 Expanding conversation thread to access all emails and headers...');
             
-            // Look for conversation expansion indicators and click them
+            // First, look for conversation expansion indicators and click them
             const expansionSelectors = [
                 '[aria-label*="Show"]',
                 '[aria-label*="messages"]', 
                 '[aria-label*="items"]',
+                '[aria-label*="replies"]',
                 '[data-testid*="expand"]',
                 '[title*="Show"]',
                 '.conversation-expansion',
                 '.show-more',
                 '.expand-thread',
                 'button[aria-expanded="false"]',
-                '[role="button"][aria-label*="Show more"]'
+                '[role="button"][aria-label*="Show more"]',
+                '[role="button"][aria-label*="Show all"]',
+                '[role="button"][title*="Show"]',
+                // Outlook specific expansion buttons
+                '[data-automation-id*="expand"]',
+                '[data-automation-id*="showMore"]'
             ];
             
             let expandedSomething = false;
@@ -1273,9 +1399,10 @@ class OutlookLoginAutomation {
                             elementText.includes('expand') ||
                             elementText.includes('messages') ||
                             elementText.includes('items') ||
-                            /\d+\s*(more|additional|items|messages)/.test(elementText)) {
+                            elementText.includes('replies') ||
+                            /\d+\s*(more|additional|items|messages|replies)/.test(elementText)) {
                             
-                            console.log(`🔍 Found expansion button: "${elementText}"`);
+                            console.log(`🔍 Found expansion button: "${elementText.substring(0, 100)}"`);
                             await element.click();
                             await new Promise(resolve => setTimeout(resolve, 2000));
                             expandedSomething = true;
@@ -1287,20 +1414,57 @@ class OutlookLoginAutomation {
                 }
             }
             
-            // Also try to expand any collapsed conversation items by looking for specific patterns
+            // Try to expand collapsed conversation items
             try {
                 const collapsedItems = await this.page.$$('[aria-expanded="false"], .collapsed, .minimized');
                 for (const item of collapsedItems) {
                     try {
-                        await item.click();
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        expandedSomething = true;
+                        const isVisible = await this.page.evaluate(el => {
+                            const rect = el.getBoundingClientRect();
+                            return rect.width > 0 && rect.height > 0;
+                        }, item);
+                        
+                        if (isVisible) {
+                            await item.click();
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            expandedSomething = true;
+                        }
                     } catch (e) {
                         continue;
                     }
                 }
             } catch (e) {
                 // Ignore errors in expansion attempts
+            }
+            
+            // Look for and click "Show headers" or similar options
+            const headerExpansionSelectors = [
+                '[aria-label*="Show headers"]',
+                '[aria-label*="View headers"]',
+                '[aria-label*="Show details"]',
+                '[aria-label*="View details"]',
+                '[title*="Show headers"]',
+                '[title*="View headers"]',
+                '[role="button"][aria-label*="header"]',
+                '[data-automation-id*="header"]'
+            ];
+            
+            for (const selector of headerExpansionSelectors) {
+                try {
+                    const headerElements = await this.page.$$(selector);
+                    for (const element of headerElements) {
+                        try {
+                            await element.click();
+                            await new Promise(resolve => setTimeout(resolve, 1500));
+                            expandedSomething = true;
+                            console.log('📋 Expanded email headers view');
+                        } catch (e) {
+                            continue;
+                        }
+                    }
+                } catch (e) {
+                    continue;
+                }
             }
             
             // Look for conversation thread navigation and try to show all messages
@@ -1318,10 +1482,40 @@ class OutlookLoginAutomation {
                 // Ignore navigation errors
             }
             
+            // Try to show CC/BCC fields if they're hidden
+            const ccBccSelectors = [
+                '[aria-label*="Show Cc"]',
+                '[aria-label*="Show Bcc"]', 
+                '[aria-label*="Show CC"]',
+                '[aria-label*="Show BCC"]',
+                '[title*="Show Cc"]',
+                '[title*="Show Bcc"]',
+                '[data-automation-id*="ShowCc"]',
+                '[data-automation-id*="ShowBcc"]'
+            ];
+            
+            for (const selector of ccBccSelectors) {
+                try {
+                    const ccBccElements = await this.page.$$(selector);
+                    for (const element of ccBccElements) {
+                        try {
+                            await element.click();
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            expandedSomething = true;
+                            console.log('📧 Expanded CC/BCC fields');
+                        } catch (e) {
+                            continue;
+                        }
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
             if (expandedSomething) {
-                console.log('✅ Successfully expanded conversation thread');
-                // Wait for content to load after expansion
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                console.log('✅ Successfully expanded conversation thread and headers');
+                // Wait longer for content to load after expansion
+                await new Promise(resolve => setTimeout(resolve, 4000));
             } else {
                 console.log('ℹ️  No conversation expansion needed or available');
             }
