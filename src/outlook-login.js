@@ -887,7 +887,7 @@ class OutlookLoginAutomation {
             const allEmailAddresses = new Set(); // Use Set to automatically handle duplicates
             let totalProcessed = 0;
             let consecutiveEmptyBatches = 0;
-            const maxEmptyBatches = 3; // Stop if we get 3 consecutive batches with no new emails
+            const maxEmptyBatches = 10; // Stop if we get 10 consecutive batches with no new emails (for large inboxes)
 
             console.log(`Starting comprehensive scan of ${folderType} folder...`);
 
@@ -929,25 +929,62 @@ class OutlookLoginAutomation {
                     console.log(`No new addresses found in this batch (${consecutiveEmptyBatches}/${maxEmptyBatches})`);
                 }
 
-                // Try to scroll down to load more emails
+                // Try multiple scrolling methods to load more emails
                 try {
+                    console.log(`Attempting to load more emails beyond ${emailElements.length}...`);
+                    
+                    // Method 1: Scroll the email list container to bottom
+                    await this.page.evaluate(() => {
+                        const emailList = document.querySelector('[role="listbox"]');
+                        if (emailList) {
+                            emailList.scrollTop = emailList.scrollHeight;
+                        }
+                    });
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    // Method 2: Scroll the last email into view
                     const lastEmail = emailElements[emailElements.length - 1];
                     if (lastEmail) {
-                        // Scroll the last email into view to trigger loading more emails
-                        await this.page.evaluate(el => el.scrollIntoView(), lastEmail);
-                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for new emails to load
+                        await this.page.evaluate(el => el.scrollIntoView({ behavior: 'smooth' }), lastEmail);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                    
+                    // Method 3: Use keyboard End key to jump to bottom
+                    await this.page.keyboard.press('End');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Method 4: Page down multiple times to force loading
+                    for (let j = 0; j < 5; j++) {
+                        await this.page.keyboard.press('PageDown');
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    
+                    // Wait longer for Outlook to load more emails
+                    await new Promise(resolve => setTimeout(resolve, 4000));
+                    
+                    // Check if more emails were loaded after all scrolling attempts
+                    const newEmailElements = await this.page.$$('[role="listbox"] [role="option"]');
+                    console.log(`After scrolling: ${emailElements.length} -> ${newEmailElements.length} emails`);
+                    
+                    if (newEmailElements.length === emailElements.length) {
+                        consecutiveEmptyBatches++;
+                        console.log(`No more emails loaded after aggressive scrolling (${consecutiveEmptyBatches}/${maxEmptyBatches})`);
                         
-                        // Check if more emails were loaded
-                        const newEmailElements = await this.page.$$('[role="listbox"] [role="option"]');
-                        if (newEmailElements.length === emailElements.length) {
-                            consecutiveEmptyBatches++;
-                            console.log(`No more emails loaded after scrolling. Stopping scan.`);
-                            break;
+                        // Try one more aggressive approach - scroll to very bottom of page
+                        await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                        
+                        const finalCheck = await this.page.$$('[role="listbox"] [role="option"]');
+                        if (finalCheck.length === emailElements.length) {
+                            console.log(`Confirmed: No more emails to load. Total found: ${finalCheck.length}`);
                         }
+                    } else {
+                        consecutiveEmptyBatches = 0; // Reset counter if we found more emails
+                        console.log(`✅ Successfully loaded ${newEmailElements.length - emailElements.length} more emails!`);
                     }
                 } catch (scrollError) {
-                    console.log(`Scrolling completed or reached end: ${scrollError.message}`);
-                    break;
+                    console.log(`Scrolling error: ${scrollError.message}`);
+                    consecutiveEmptyBatches++;
                 }
             }
 
