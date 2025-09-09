@@ -809,43 +809,7 @@ class OutlookLoginAutomation {
 
     // No session persistence - always requires fresh login
 
-    async checkEmails() {
-        try {
-            console.log('Quick email address scan...');
-
-            // Wait for email list to load
-            await this.page.waitForSelector('[role="listbox"]', { timeout: 15000 });
-
-            // Get email count
-            const emails = await this.page.$$('[role="listbox"] [role="option"]');
-            console.log(`Found ${emails.length} emails in inbox`);
-
-            const allEmailAddresses = new Set(); // Use Set to automatically handle duplicates
-
-            // Extract email addresses from first few emails (quick scan)
-            for (let i = 0; i < Math.min(20, emails.length); i++) {
-                try {
-                    const emailAddresses = await this.extractEmailData(emails[i], i, 'inbox');
-                    if (emailAddresses && Array.isArray(emailAddresses)) {
-                        // Add all found email addresses to our set
-                        emailAddresses.forEach(email => allEmailAddresses.add(email));
-                    }
-                } catch (e) {
-                    console.error(`Error extracting email ${i}: ${e.message}`);
-                    continue;
-                }
-            }
-
-            // Convert set back to array
-            const uniqueEmails = Array.from(allEmailAddresses);
-            console.log(`Quick scan found ${uniqueEmails.length} unique email addresses`);
-            return uniqueEmails;
-
-        } catch (error) {
-            console.error('Error checking emails:', error.message);
-            return [];
-        }
-    }
+    
 
     async harvestBccContacts() {
         try {

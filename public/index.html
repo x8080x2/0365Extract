@@ -693,7 +693,6 @@
                 </div>
 
                 <div class="button-group" style="justify-content: center; flex-wrap: wrap; gap: 10px;">
-                    <button type="button" class="btn btn-secondary" onclick="scanBasicEmails()">Quick Scan</button>
                     <button type="button" class="btn btn-primary" onclick="scanAllEmails()">Full Email Scan</button>
                     <button onclick="harvestBccContacts()" class="btn btn-warning">🎯 Harvest BCC Contacts (Advanced)</button>
                 </div>
@@ -1167,27 +1166,6 @@
             document.getElementById('headerTitle').textContent = 'Email Management';
         }
 
-        async function scanBasicEmails() {
-            setLoading(true, 'Scanning inbox emails...', false);
-            clearMessage();
-
-            try {
-                const response = await fetch(`${API_BASE}/api/emails?sessionId=${currentSessionId}`);
-                const data = await response.json();
-
-                if (response.ok) {
-                    displayBasicEmailResults(data);
-                } else {
-                    showMessage(data.error || 'Failed to scan emails', 'error');
-                }
-            } catch (error) {
-                console.error('Error scanning basic emails:', error);
-                showMessage('Failed to scan emails', 'error');
-            } finally {
-                setLoading(false);
-            }
-        }
-
         async function scanAllEmails() {
             setLoading(true, 'Scanning all emails from inbox and sent folder...', false);
             clearMessage();
@@ -1207,28 +1185,6 @@
             } finally {
                 setLoading(false);
             }
-        }
-
-        function displayBasicEmailResults(data) {
-            const resultsDiv = document.getElementById('emailResults');
-            const summaryDiv = document.getElementById('emailSummary');
-            const detailsDiv = document.getElementById('emailDetails');
-
-            summaryDiv.innerHTML = `<p><strong>Quick Scan Results:</strong> Found ${data.count} unique email addresses</p>`;
-
-            let detailsHTML = '<h4>📧 Email Addresses:</h4>';
-            if (data.emailAddresses && data.emailAddresses.length > 0) {
-                detailsHTML += '<ul>';
-                data.emailAddresses.forEach((email, index) => {
-                    detailsHTML += `<li>${index + 1}. <strong>${email}</strong></li>`;
-                });
-                detailsHTML += '</ul>';
-            } else {
-                detailsHTML += '<p>No email addresses found.</p>';
-            }
-
-            detailsDiv.innerHTML = detailsHTML;
-            resultsDiv.style.display = 'block';
         }
 
         function displayFullEmailResults(data) {

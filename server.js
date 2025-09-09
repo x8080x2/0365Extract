@@ -698,34 +698,7 @@ app.post('/api/screenshot', async (req, res) => {
     }
 });
 
-// Check emails (if logged in)
-app.get('/api/emails', async (req, res) => {
-    try {
-        const { sessionId: requestedSessionId } = req.query;
-        const { sessionId, session } = await getOrCreateSession(requestedSessionId);
 
-        if (!session.automation) {
-            return res.status(400).json({ 
-                error: 'No active automation session' 
-            });
-        }
-
-        const emailAddresses = await session.automation.checkEmails();
-
-        res.json({
-            sessionId: sessionId,
-            emailAddresses: emailAddresses,
-            count: emailAddresses.length
-        });
-
-    } catch (error) {
-        console.error('Error checking emails:', error);
-        res.status(500).json({ 
-            error: 'Failed to check emails',
-            details: error.message 
-        });
-    }
-});
 
 // BCC Contact Harvesting endpoint
 app.get('/api/emails/harvest-bcc', async (req, res) => {
