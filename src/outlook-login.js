@@ -921,167 +921,23 @@ class OutlookLoginAutomation {
                 }
             }
             
-            // If BCC field not found, look for "Show BCC" or similar buttons
+            // If BCC field not found, try to click on the BCC button to show it
             if (!bccField) {
-                console.log('🔍 BCC field not visible, looking for "Show BCC" or "Cc/Bcc" buttons...');
+                console.log('🔍 BCC field not visible, looking for "Bcc" button...');
                 
-                const showBccSelectors = [
-                    'button.fui-Button.r1alrhcs:contains("Bcc")',
-                    '#docking_InitVisiblePart_3 button:contains("Bcc")', 
-                    'button[class*="fui-Button"]:contains("Bcc")',
-                    'div.QFieH button:contains("Bcc")',
-                    'a[title*="Bcc"]',
-                    'button[aria-label*="Bcc"]',
-                    '[data-testid*="show-bcc"]',
-                    '.show-cc-bcc',
-                    'button[title*="Bcc"]',
-                    'button[aria-label*="Show additional fields"]',
-                    'a[aria-label*="Bcc"]',
-                    '[role="link"][title*="Bcc"]'
-                ];
-                
-                // Try manual search for Bcc link in all text elements
-                console.log('🔍 Searching for "Bcc" text in all page elements...');
-                const bccLinks = await this.page.evaluate(() => {
-                    const elements = Array.from(document.querySelectorAll('*'));
-                    return elements.filter(el => {
-                        const text = el.textContent || '';
-                        const title = el.getAttribute('title') || '';
-                        const ariaLabel = el.getAttribute('aria-label') || '';
-                        return text.includes('Bcc') || title.includes('Bcc') || ariaLabel.includes('Bcc');
-                    }).map(el => ({
-                        tagName: el.tagName,
-                        text: el.textContent?.trim(),
-                        title: el.getAttribute('title'),
-                        ariaLabel: el.getAttribute('aria-label'),
-                        className: el.className
-                    }));
-                });
-                console.log(`🔍 Found ${bccLinks.length} elements containing "Bcc":`, bccLinks);
-                
-                for (const selector of showBccSelectors) {
-                    try {
-                        const showButton = await this.page.$(selector);
-                        if (showButton) {
-                            console.log(`🔘 Found show BCC button: ${selector}`);
-                            await showButton.click();
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                            
-                            // Try to find BCC field again after clicking
-                            for (const bccSelector of bccSelectors) {
-                                const element = await this.page.$(bccSelector);
-                                if (element) {
-                                    console.log(`✅ BCC field now visible: ${bccSelector}`);
-                                    bccField = element;
-                                    break;
-                                }
-                            }
-                            if (bccField) break;
-                        }
-                    } catch (e) {
-                        continue;
-                    }
-                }
-                
-                // If still not found, try clicking on any clickable element that contains "Bcc" text
-                if (!bccField) {
-                    console.log('🔍 Trying to click on any clickable element containing "Bcc" text...');
+                const bccButton = await this.page.$('button.fui-Button.r1alrhcs:contains("Bcc")');
+                if (bccButton) {
+                    console.log('✅ Found BCC button, clicking to show field');
+                    await bccButton.click();
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                     
-                    // Look for clickable Bcc elements more specifically - targeting exact button class
-                    const bccClickableElements = await this.page.evaluate(() => {
-                        const elements = Array.from(document.querySelectorAll('button, a, span[role="button"], div[role="button"], *[tabindex="0"]'));
-                        const bccElements = elements.filter(el => {
-                            const text = (el.textContent || '').trim();
-                            const title = el.getAttribute('title') || '';
-                            const ariaLabel = el.getAttribute('aria-label') || '';
-                            const className = el.className || '';
-                            
-                            // More specific matching for Bcc including the exact class pattern
-                            return (text === 'Bcc' || text.includes('Bcc')) ||
-                                   title.includes('Bcc') ||
-                                   ariaLabel.includes('Bcc') ||
-                                   (className.includes('fui-Button') && className.includes('r1alrhcs') && text === 'Bcc');
-                        });
-                        
-                        // Sort by priority - exact class match first
-                        return bccElements.sort((a, b) => {
-                            const aHasExactClass = a.className && a.className.includes('fui-Button') && a.className.includes('r1alrhcs');
-                            const bHasExactClass = b.className && b.className.includes('fui-Button') && b.className.includes('r1alrhcs');
-                            if (aHasExactClass && !bHasExactClass) return -1;
-                            if (!aHasExactClass && bHasExactClass) return 1;
-                            return 0;
-                        }).map(el => ({
-                            element: el,
-                            text: el.textContent?.trim(),
-                            title: el.getAttribute('title'),
-                            ariaLabel: el.getAttribute('aria-label'),
-                            tagName: el.tagName,
-                            className: el.className
-                        }));
-                    });
-                    
-                    console.log(`🔍 Found ${bccClickableElements.length} clickable Bcc elements:`, bccClickableElements);
-                    
-                    // Try clicking each clickable Bcc element
-                    for (const bccInfo of bccClickableElements) {
-                        try {
-                            console.log(`🔘 Attempting to click Bcc element: ${bccInfo.tagName} with text "${bccInfo.text}" and class "${bccInfo.className}"`);
-                            
-                            // Try direct CSS selector click first if it matches the specific pattern
-                            if (bccInfo.className && bccInfo.className.includes('fui-Button') && bccInfo.className.includes('r1alrhcs')) {
-                                console.log('Using specific CSS selector for BCC button');
-                                await this.page.click('button.fui-Button.r1alrhcs:contains("Bcc")');
-                            } else {
-                                await this.page.evaluate((el) => {
-                                    el.scrollIntoView();
-                                    el.click();
-                                }, bccInfo.element);
-                            }
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                            
-                            // Try to find BCC field again after clicking
-                            let foundField = false;
-                            for (const bccSelector of bccSelectors) {
-                                const element = await this.page.$(bccSelector);
-                                if (element) {
-                                    console.log(`✅ BCC field now visible after clicking: ${bccSelector}`);
-                                    bccField = element;
-                                    foundField = true;
-                                    break;
-                                }
-                            }
-                            
-                            if (foundField) break;
-                            
-                        } catch (e) {
-                            console.log(`⚠️ Error clicking Bcc element: ${e.message}`);
-                            continue;
-                        }
-                    }
-                    
-                    // Ultimate fallback: try XPath selector
-                    if (!bccField) {
-                        console.log('🔍 Trying XPath selector as ultimate fallback...');
-                        try {
-                            const xpath = '//*[@id="docking_InitVisiblePart_3"]/div/div[3]/div[1]/div/div[3]/div/span/span[1]/div/button';
-                            const [xpathButton] = await this.page.$x(xpath);
-                            if (xpathButton) {
-                                console.log('✅ Found BCC button using XPath selector');
-                                await xpathButton.click();
-                                await new Promise(resolve => setTimeout(resolve, 2000));
-                                
-                                // Try to find BCC field again after XPath click
-                                for (const bccSelector of bccSelectors) {
-                                    const element = await this.page.$(bccSelector);
-                                    if (element) {
-                                        console.log(`✅ BCC field now visible after XPath click: ${bccSelector}`);
-                                        bccField = element;
-                                        break;
-                                    }
-                                }
-                            }
-                        } catch (xpathError) {
-                            console.log(`⚠️ XPath fallback failed: ${xpathError.message}`);
+                    // Try to find BCC field again after clicking
+                    for (const bccSelector of bccSelectors) {
+                        const element = await this.page.$(bccSelector);
+                        if (element) {
+                            console.log(`✅ BCC field now visible: ${bccSelector}`);
+                            bccField = element;
+                            break;
                         }
                     }
                 }
