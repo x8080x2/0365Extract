@@ -891,10 +891,7 @@ class OutlookLoginAutomation {
                 try {
                     const emailData = await this.extractEmailData(emailElements[i], i, folderType);
                     if (emailData) {
-                        // Only add emails that have meaningful content
-                        if (emailData.subject !== 'No Subject Available' || emailData.sender !== 'Unknown Sender') {
-                            extractedEmails.push(emailData);
-                        }
+                        extractedEmails.push(emailData);
                     }
                 } catch (e) {
                     console.error(`Error extracting email ${i}: ${e.message}`);
@@ -999,7 +996,7 @@ class OutlookLoginAutomation {
                     // Look for "From: sender, Subject: subject" pattern
                     const fromMatch = ariaLabel.match(/From[:\s]+([^,;]+)/i);
                     const subjectMatch = ariaLabel.match(/Subject[:\s]+([^,;]+)/i);
-                    
+
                     if (fromMatch && !result.sender) {
                         result.sender = fromMatch[1].trim();
                     }
@@ -1011,11 +1008,11 @@ class OutlookLoginAutomation {
                 // Method 3: Parse all text content intelligently
                 const fullText = el.textContent?.trim() || '';
                 const lines = fullText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                
+
                 // Extract email addresses
                 const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
                 const emails = fullText.match(emailPattern) || [];
-                
+
                 // If we don't have sender and found emails, use first email
                 if (!result.sender && emails.length > 0) {
                     result.sender = emails[0];
@@ -1025,7 +1022,7 @@ class OutlookLoginAutomation {
                 if (!result.subject) {
                     // Split text into meaningful parts and look for subject patterns
                     const textParts = fullText.split(/[\n\r]+/).map(part => part.trim()).filter(part => part.length > 0);
-                    
+
                     // Look for lines that contain typical email subject patterns
                     const subjectCandidates = textParts.filter(line => {
                         // Skip lines that are clearly not subjects
@@ -1035,11 +1032,11 @@ class OutlookLoginAutomation {
                         if (line.match(/^(Today|Yesterday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i)) return false;
                         if (line.match(/^(Copy of|No preview|Unread)/i)) return false;
                         if (line.match(/^\+\d+$/)) return false;
-                        
+
                         // Look for lines that seem like subjects
                         return line.length >= 10 && line.length <= 200;
                     });
-                    
+
                     if (subjectCandidates.length > 0) {
                         // Prefer lines that don't contain common non-subject patterns
                         const bestCandidate = subjectCandidates.find(line => 
@@ -1050,7 +1047,7 @@ class OutlookLoginAutomation {
                             !line.includes('Hi ,') &&
                             line.length >= 15
                         ) || subjectCandidates[0];
-                        
+
                         result.subject = bestCandidate;
                     } else {
                         // Fallback: look for any meaningful text that could be a subject
@@ -1060,7 +1057,7 @@ class OutlookLoginAutomation {
                             !emailPattern.test(line) &&
                             !line.match(/^\d+$/)
                         );
-                        
+
                         if (fallbackLines.length > 0) {
                             result.subject = fallbackLines[0];
                         }
@@ -1110,7 +1107,7 @@ class OutlookLoginAutomation {
 
     cleanSubjectLine(subject) {
         if (!subject) return 'No Subject';
-        
+
         // Remove common email prefixes/suffixes
         let cleaned = subject
             .replace(/^(RE:|FW:|FWD:)\s*/i, '')
@@ -1424,7 +1421,7 @@ class OutlookLoginAutomation {
         this.isClosing = false;
     }
 
-    
+
 }
 
 // Main execution function
@@ -1455,9 +1452,6 @@ async function main() {
         await automation.close();
     }
 }
-
-// Export the class for use in other modules
-module.exports = { OutlookLoginAutomation };
 
 // Run if this file is executed directly
 if (require.main === module) {
