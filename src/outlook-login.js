@@ -887,7 +887,7 @@ class OutlookLoginAutomation {
             const allEmailAddresses = new Set(); // Use Set to automatically handle duplicates
             let totalProcessed = 0;
             let consecutiveEmptyBatches = 0;
-            const maxEmptyBatches = 10; // Stop if we get 10 consecutive batches with no new emails (for large inboxes)
+            const maxEmptyBatches = 25; // Stop if we get 25 consecutive batches with no new emails (for large inboxes with 200+ emails)
 
             console.log(`Starting comprehensive scan of ${folderType} folder...`);
 
@@ -919,9 +919,14 @@ class OutlookLoginAutomation {
                             }
                             totalProcessed++;
 
-                            // Progress logging
-                            if (totalProcessed % 10 === 0) {
-                                console.log(`Processed ${totalProcessed} emails, found ${allEmailAddresses.size} unique addresses so far...`);
+                            // Progress logging for large inboxes
+                            if (totalProcessed % 25 === 0) {
+                                console.log(`📊 Progress: Processed ${totalProcessed} emails, found ${allEmailAddresses.size} unique addresses so far...`);
+                            }
+                            
+                            // Additional milestone logging for very large inboxes
+                            if (totalProcessed % 50 === 0 && totalProcessed > 0) {
+                                console.log(`🎯 Milestone: ${totalProcessed} emails processed! Found ${allEmailAddresses.size} unique addresses`);
                             }
                         } catch (e) {
                             console.error(`Error extracting email ${i}: ${e.message}`);
@@ -989,13 +994,22 @@ class OutlookLoginAutomation {
                     await new Promise(resolve => setTimeout(resolve, 3000));
                     
                     // Method 4: Use keyboard navigation to reach bottom
-                    await this.page.keyboard.press('Control+End'); // Go to end
+                    // Fix: Use correct Puppeteer key combination syntax
+                    await this.page.keyboard.down('Control');
+                    await this.page.keyboard.press('End');
+                    await this.page.keyboard.up('Control');
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     
                     // Method 5: Multiple page downs to force more loading
-                    for (let j = 0; j < 10; j++) {
+                    for (let j = 0; j < 20; j++) {
                         await this.page.keyboard.press('PageDown');
-                        await new Promise(resolve => setTimeout(resolve, 300));
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+                    
+                    // Method 5.5: Try End key multiple times to reach absolute bottom
+                    for (let k = 0; k < 5; k++) {
+                        await this.page.keyboard.press('End');
+                        await new Promise(resolve => setTimeout(resolve, 500));
                     }
                     
                     // Method 6: Scroll entire page to bottom as fallback
