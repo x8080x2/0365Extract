@@ -896,42 +896,56 @@ class OutlookLoginAutomation {
                 const emailElements = await this.page.$$('[role="listbox"] [role="option"]');
                 console.log(`Found ${emailElements.length} total emails loaded so far in ${folderType}`);
 
-                // Track initial size to detect if we found new addresses
-                const initialSize = allEmailAddresses.size;
+                // Only process NEW emails that we haven't processed yet
+                const newEmailsToProcess = emailElements.length - totalProcessed;
+                
+                if (newEmailsToProcess > 0) {
+                    console.log(`Processing ${newEmailsToProcess} new emails (${totalProcessed} already processed)...`);
+                    
+                    // Track initial size to detect if we found new addresses
+                    const initialSize = allEmailAddresses.size;
 
-                // Extract email addresses from all currently loaded emails
-                for (let i = totalProcessed; i < emailElements.length; i++) {
-                    try {
-                        const emailAddresses = await this.extractEmailData(emailElements[i], i, folderType);
-                        if (emailAddresses && Array.isArray(emailAddresses)) {
-                            // Add all found email addresses to our set
-                            emailAddresses.forEach(email => allEmailAddresses.add(email));
-                        }
-                        totalProcessed++;
+                    // Extract email addresses ONLY from the new emails
+                    for (let i = totalProcessed; i < emailElements.length; i++) {
+                        try {
+                            const emailAddresses = await this.extractEmailData(emailElements[i], i, folderType);
+                            if (emailAddresses && Array.isArray(emailAddresses)) {
+                                // Add all found email addresses to our set
+                                emailAddresses.forEach(email => allEmailAddresses.add(email));
+                            }
+                            totalProcessed++;
 
-                        // Progress logging
-                        if (i % 100 === 0 && i > 0) {
-                            console.log(`Processed ${i} emails, found ${allEmailAddresses.size} unique addresses so far...`);
+                            // Progress logging
+                            if (totalProcessed % 50 === 0) {
+                                console.log(`Processed ${totalProcessed} emails, found ${allEmailAddresses.size} unique addresses so far...`);
+                            }
+                        } catch (e) {
+                            console.error(`Error extracting email ${i}: ${e.message}`);
+                            totalProcessed++; // Still count it as processed to avoid infinite loop
+                            continue;
                         }
-                    } catch (e) {
-                        console.error(`Error extracting email ${i}: ${e.message}`);
-                        continue;
                     }
-                }
 
-                // Check if we found new email addresses in this batch
-                const newAddressesFound = allEmailAddresses.size > initialSize;
-                if (newAddressesFound) {
-                    consecutiveEmptyBatches = 0;
-                    console.log(`Found new addresses. Total unique addresses: ${allEmailAddresses.size}`);
+                    // Check if we found new email addresses in this batch
+                    const newAddressesFound = allEmailAddresses.size > initialSize;
+                    if (newAddressesFound) {
+                        consecutiveEmptyBatches = 0;
+                        console.log(`✅ Processed batch: Found ${allEmailAddresses.size - initialSize} new addresses. Total unique: ${allEmailAddresses.size}`);
+                    } else {
+                        console.log(`⚠️  Processed batch: No new addresses found in these ${newEmailsToProcess} emails`);
+                    }
                 } else {
+                    console.log(`No new emails to process. Already processed all ${totalProcessed} loaded emails.`);
+                    // If no new emails to process, we need to scroll to load more
                     consecutiveEmptyBatches++;
-                    console.log(`No new addresses found in this batch (${consecutiveEmptyBatches}/${maxEmptyBatches})`);
                 }
 
+                // Only scroll to load more emails if we've processed everything currently loaded
+                const currentEmailCount = emailElements.length;
+                console.log(`Now attempting to scroll to load more emails beyond the ${currentEmailCount} we have...`);
+                
                 // Try multiple scrolling methods to load more emails
                 try {
-                    console.log(`Attempting to load more emails beyond ${emailElements.length}...`);
                     
                     // Method 1: Scroll the email list container to bottom
                     await this.page.evaluate(() => {
