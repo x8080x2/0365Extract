@@ -956,10 +956,8 @@ class OutlookLoginAutomation {
             );
             emailData.subject = meaningfulLines.length > 0 ? meaningfulLines[0] : 'No Subject';
 
-            // Extract date - look for time patterns
-            const datePattern = /(\d{1,2}:\d{2}\s*(AM|PM)|\d{1,2}\/\d{1,2}\/\d{2,4}|yesterday|today|\d+\s*(minute|hour|day)s?\s*ago)/i;
-            const dateMatch = allContent.match(datePattern);
-            emailData.date = dateMatch ? dateMatch[0] : 'Unknown Date';
+            // Set default date
+            emailData.date = 'Unknown Date';
 
             // Extract preview - take remaining meaningful text
             const previewText = meaningfulLines.slice(1).join(' ');
